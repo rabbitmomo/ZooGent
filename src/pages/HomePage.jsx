@@ -152,7 +152,7 @@ export default function ChatBox() {
         const data = await res.json();
 
         if (data.results && data.results.length) {
-          // take top 2 results per product from multiple marketplaces
+          // take top 3 results per product from the marketplaces 
           const topResults = data.results.slice(0, 3);
           topResults.forEach((r) => {
             resultsArray.push(
