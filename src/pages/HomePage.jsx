@@ -134,44 +134,39 @@ export default function HomePage() {
     }
   };
 
-  // Call Custom Marketplace Search API
-  const callMarketplaceSearch = async (products) => {
+  // Call Custom Marketplace Search API for Top 10 Distinct Products
+  const callMarketplaceSearch = async (query) => {
     try {
-      const topProducts = Array.isArray(products)
-        ? products.slice(0, 3) // top 3
-        : products
-            .split("\n")
-            .map((p) => p.replace(/^\d+\.\s*/, "").trim())
-            .filter(Boolean)
-            .slice(0, 3);
+      if (!query) return [];
 
-      if (!topProducts.length) return "No marketplace search results.";
+      const res = await fetch(`${BASE_URL}/api/search/marketplace`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query }),
+      });
+      const data = await res.json();
 
-      const resultsArray = [];
-
-      for (const product of topProducts) {
-        const res = await fetch(`${BASE_URL}/api/search/marketplace`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ query: product }),
-        });
-        const data = await res.json();
-
-        if (data.results && data.results.length) {
-          // take top 3 results per product from the marketplaces 
-          const topResults = data.results.slice(0, 3);
-          topResults.forEach((r) => {
-            resultsArray.push(
-              `• ${product} (${r.domain}):\n  ${r.title}\n  ${r.link}\n  ${r.snippet}${r.image ? `\n  ${r.image}` : ''}`
-            );
-          });
-        }
+      if (!data.results || !data.results.length) {
+        return [];
       }
 
-      return resultsArray.join("\n\n");
+      // Deduplicate results by title
+      const uniqueTitles = new Set();
+      const distinctResults = data.results.filter(result => {
+        const normalizedTitle = result.title.toLowerCase();
+        if (!uniqueTitles.has(normalizedTitle)) {
+          uniqueTitles.add(normalizedTitle);
+          return true;
+        }
+        return false;
+      });
+      
+      // Return top 10 distinct results
+      return distinctResults.slice(0, 10);
+
     } catch (err) {
       console.error("Marketplace Search API error:", err);
-      return "Error fetching marketplace search results.";
+      return []; // Return empty array on error
     }
   };
 
@@ -212,74 +207,38 @@ export default function HomePage() {
         productRecommendations
       );
 
-      // Step 6: Marketplace search for top 3 ranked products
-      setCurrentStep(6);
-      const marketplaceResults = await callMarketplaceSearch(rankedProducts);
-
-      // Step 7: Complete
-      setCurrentStep(7);
-
-      // Parse marketplace results for better display
-      const parsedResults = parseMarketplaceResults(marketplaceResults);
-
-      setMessages((prev) => [
-        ...prev,
-        { 
-          role: "bot", 
-          text: `Here are your personalized product recommendations:`,
-          results: {
-            searchQuery: rewrittenQuery,
-            forumResults: Array.isArray(forumResults) ? forumResults : [],
-            summary: forumSummary,
-            recommendations: productRecommendations,
-            rankedProducts,
-            marketplaceResults: parsedResults
+            // Step 6: Marketplace search using the rewritten query
+            setCurrentStep(6);
+            const marketplaceProducts = await callMarketplaceSearch(rewrittenQuery);
+      
+            // Step 7: Complete
+            setCurrentStep(7);
+      
+            setMessages((prev) => [
+              ...prev,
+              {
+                role: "bot",
+                text: `Here are your personalized product recommendations:`,
+                results: {
+                  searchQuery: rewrittenQuery,
+                  forumResults: Array.isArray(forumResults) ? forumResults : [],
+                  summary: forumSummary,
+                  recommendations: productRecommendations,
+                  rankedProducts,
+                  marketplaceResults: marketplaceProducts,
+                },
+              },
+            ]);
+          } catch (err) {
+            setMessages((prev) => [
+              ...prev,
+              { role: "bot", text: "Error processing request." + err.message },
+            ]);
+          } finally {
+            setLoading(false);
+            setCurrentStep(0);
           }
-        },
-      ]);
-    } catch (err) {
-      setMessages((prev) => [
-        ...prev,
-        { role: "bot", text: "Error processing request." + err.message },
-      ]);
-    } finally {
-      setLoading(false);
-      setCurrentStep(0);
-    }
-  };
-
-  const parseMarketplaceResults = (results) => {
-    if (!results || results === "No marketplace search results.") return [];
-    
-    const lines = results.split('\n\n');
-    const products = [];
-    
-    lines.forEach(line => {
-      if (line.includes('•') && line.includes('(') && line.includes('):')) {
-        const parts = line.split('\n');
-        if (parts.length >= 3) {
-          const title = parts[0].replace('• ', '').split(' (')[0];
-          const domain = parts[0].match(/\(([^)]+)\)/)?.[1] || '';
-          const productTitle = parts[1].trim();
-          const link = parts[2].trim();
-          const snippet = parts[3]?.trim() || '';
-          const image = parts[4]?.trim() || '';
-          
-          products.push({
-            title: productTitle,
-            domain,
-            link,
-            snippet,
-            image,
-            category: title
-          });
-        }
-      }
-    });
-    
-    return products;
-  };
-
+        };
   const pipelineSteps = [
     { id: 1, name: "Query Rewrite", description: "AI rewrites your question for better search" },
     { id: 2, name: "Forum Search", description: "Searching community discussions" },
@@ -352,23 +311,7 @@ export default function HomePage() {
                         <p className="card-text text-muted" style={{ fontSize: "12px" }}>
                           {item.domain}
                         </p>
-                        {item.image && (
-                          <div className="mb-2">
-                            <img 
-                              src={item.image} 
-                              alt={item.title}
-                              className="img-fluid rounded"
-                              style={{ 
-                                maxHeight: "150px", 
-                                width: "100%", 
-                                objectFit: "cover" 
-                              }}
-                              onError={(e) => {
-                                e.target.style.display = 'none';
-                              }}
-                            />
-                          </div>
-                        )}
+
                         <div className="d-flex justify-content-between align-items-center">
                           <small className="text-muted">{item.domain}</small>
                           <a 

@@ -29,7 +29,7 @@ const DISCUSSION_ALLOWED_DOMAINS = [
   "tiktok.com",
   "reddit.com"
 ];
-const RESULTS_PER_DOMAIN = 1;
+const RESULTS_PER_DOMAIN = 5;
 
 const client = new BedrockRuntimeClient({
   region: "ap-southeast-1", // Singapore region  (APAC region, Malaysia isn't available for this service)
