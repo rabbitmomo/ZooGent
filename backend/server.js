@@ -57,10 +57,14 @@ app.post("/api/bedrock/searchAgent", async (req, res) => {
         content: [
           {
             text:
-              "You are Search Agent of project ZooGent. " +
-              "Rewrite ONLY the user's message into a clear, SEO-friendly English query " +
-              "focused on user needs. DO NOT repeat the original user message or include it in your output. " +
-              "Output ONLY a single rewritten query—no explanations, no prefixes, no extra text.",
+              "You are the Product Identification Agent of project ZooGent. " +
+              "Your task is to analyze the user's message to identify the specific product they are looking for. " +
+              "The user might describe it vaguely (e.g., 'a good phone for gaming') or name it directly. " +
+              "If the user's request is vague, determine the product category and suggest a clearer product name. " +
+              "If the user knows what they want, confirm the product name. " +
+              "Output ONLY the identified product name, ready for the next step. " +
+              "For example, if the user says 'I want a cheap phone with a good camera', you could output 'budget smartphone with a good camera'. " +
+              "If they say 'iPhone 15', output 'iPhone 15'. Provide only the product name and nothing else.",
           },
         ],
       },
@@ -69,7 +73,7 @@ app.post("/api/bedrock/searchAgent", async (req, res) => {
     // Use your inference profile ID or ARN here
     //const modelId = "apac.amazon.nova-lite-v1:0";
     // const modelId = "arn:aws:bedrock:ap-southeast-1:257546622933:inference-profile/apac.amazon.nova-lite-v1:0";
-    const modelId = "apac.amazon.nova-micro-v1:0";
+    const modelId = "apac.amazon.nova-pro-v1:0";
 
     const command = new ConverseCommand({ modelId, messages });
     const response = await client.send(command);
@@ -109,18 +113,18 @@ app.post("/api/bedrock/summarizeAgent", async (req, res) => {
         content: [
           {
             text:
-              "You are SummarizeAgent. Your task is to read the forum search results " +
-              "(title, snippet, domain, etc.) and produce a single, well-structured paragraph " +
-              "that introduces the product being discussed, highlights key features, advantages, " +
-              "disadvantages, and summarizes the main points of debate across the forums. " +
-              "Limit your summary to 100 words. " +
-              "Do not add unverified information—only use what is implied by the provided results.",
+              "You are the Search Keyword Agent of project ZooGent. " +
+              "You will be given a product name. Your job is to generate a set of 3-5 diverse and effective search queries " +
+              "to find the best deals and high-quality options for this product on e-commerce sites like Amazon, Shopee, and Lazada. " +
+              "Focus on keywords that capture price, quality, and popularity. " +
+              "Output ONLY the search queries, separated by newlines. For example, for 'ergonomic office chair', you might output:" +
+              "\n'best budget ergonomic office chair'\n'top rated ergonomic chair 2025'\n'ergonomic office chair under $200'\n'premium mesh ergonomic chair'",
           },
         ],
       },
     ];
 
-    const modelId = "apac.amazon.nova-micro-v1:0";
+    const modelId = "apac.amazon.nova-pro-v1:0";
 
     const command = new ConverseCommand({ modelId, messages });
     const response = await client.send(command);
@@ -174,32 +178,16 @@ app.post("/api/bedrock/productRecommendAgent", async (req, res) => {
         content: [
           {
             text:
-            "You are ShopSmartAgent, an AI assistant that helps users find and recommend products online.\n\n" +
-            "The user may:\n" +
-            "- Describe a product vaguely (e.g., 'a chair that’s comfortable for gaming').\n" +
-            "- Name the product directly (e.g., 'Logitech MX Master 3S Mouse').\n\n" +
-            "Your tasks:\n" +
-            "1. Understand the user’s intent and determine the correct product type.\n" +
-            "2. Recommend 1 to 5 specific, currently-sold products from well-known platforms such as Amazon, eBay, Lazada, Shopee, Temu, or TikTok Shop.\n" +
-            "3. Ensure recommendations are popular, high quality, and/or good value for money.\n" +
-            "4. If the user specifies preferences (cheap, premium, under $50, eco-friendly, etc.), prioritize products that match them.\n" +
-            "5. Always output ONLY a clean, numbered list in this format:\n" +
-            "   1. Brand – Product Name (Platform)\n" +
-            "   2. Brand – Product Name (Platform)\n\n" +
-            "Do not add explanations or any text outside the list."+
-              "1. You are ProductRecommendAgent. " +
-              "Read the user's request and the forum search results **as optional context**, " +
-              "but you are free to use your own broad knowledge of the market to recommend the best-matching products. " +
-              "Do not limit yourself to only the forum text. " +
-              "Return at least 1 and at most 5 **specific, currently-sold best-matching products with full product names including their exact model numbers**. " +
-              "Output ONLY a numbered list in the format '1. Product name + ModelNumber'. " +
-              "Do not add explanations or extra text.",
+              "You are the Product List Agent. You will receive a user's request and a list of search results from online marketplaces. " +
+              "Your task is to analyze these and identify the top 5 products that best match the user's needs (e.g., budget, quality, brand). " +
+              "Output ONLY a clean, numbered list of the top 5 product titles as found in the search results. " +
+              "Format: `1. Full Product Title`. Do not add explanations or any text outside the list.",
           },
         ],
       },
     ];
 
-    const modelId = "apac.amazon.nova-micro-v1:0";
+    const modelId = "apac.amazon.nova-pro-v1:0";
     const command = new ConverseCommand({ modelId, messages });
     const response = await client.send(command);
 
@@ -223,18 +211,16 @@ app.post("/api/bedrock/productRecommendAgent", async (req, res) => {
         content: [
           {
             text:
-              "You are ProductRecommendAgent. " +
-              "Read the user's request **as optional context**, " +
-              "but you are free to use your own broad knowledge of the market to recommend the best-matching products. " +
-              "Return at least 1 and at most 5 **specific, currently-sold phone models with full product names including model numbers**. " +
-              "Output ONLY a numbered list in the format '1. Brand ModelNumber'. " +
-              "Do not add explanations or extra text.",
+              "You are the Product List Agent. The user has provided a request but no search results are available. " +
+              "Based on your general knowledge, recommend 1-5 specific, currently-sold products that match the user's request. " +
+              "Prioritize products that are popular, high-quality, or good value. " +
+              "Output ONLY a clean, numbered list in the format: `1. Brand – Product Name`. Do not add explanations.",
           },
         ],
       },
     ];
 
-    const modelId = "apac.amazon.nova-micro-v1:0";
+    const modelId = "apac.amazon.nova-pro-v1:0";
     const command = new ConverseCommand({ modelId, messages });
     const response = await client.send(command);
 
@@ -319,7 +305,7 @@ app.post("/api/bedrock/matchAgent", async (req, res) => {
       }
     ];
 
-    const modelId = "apac.amazon.nova-micro-v1:0";
+    const modelId = "apac.amazon.nova-pro-v1:0";
     const command = new ConverseCommand({ modelId, messages });
     const response = await client.send(command);
 
@@ -376,18 +362,17 @@ app.post("/api/bedrock/productAdvertisingAgent", async (req, res) => {
         role: "assistant",
         content: [{
           text:
-            "You are ProductAdvertisingAgent of project ZooGent. " +
-            "Write a concise, appealing introduction for the given product, " +
-            "highlighting how it matches the user's needs (budget-friendly phone in Malaysia, strong battery, good internet, 5G, etc.). " +
-            "Base your wording on the provided product details but rewrite it as a natural advertising intro. " +
+            "You are the JustificationAgent. Given the user's request and a specific recommended product, write a concise justification (1-2 sentences) explaining why this product is a good fit. " +
+            "Highlight how its features align with the user's stated needs (budget, quality, etc.). " +
+            "This will serve as a concluding summary for the user about this recommendation. " +
             "Return ONLY a JSON object exactly like this:\n" +
-            "{ \"introduction\": \"Your rewritten product intro here.\" }\n" +
+            "{ \"introduction\": \"Your justification here.\" }\n" +
             "No extra text, no explanation."
         }]
       }
     ];
 
-    const modelId = "apac.amazon.nova-micro-v1:0";
+    const modelId = "apac.amazon.nova-pro-v1:0";
     const command = new ConverseCommand({ modelId, messages });
     const response = await client.send(command);
 
