@@ -1,0 +1,79 @@
+/* Amazon-inspired styling */
+:root {
+  --amazon-orange: #ff9900;
+  --amazon-dark: #232f3e;
+  --amazon-light-gray: #f8f9fa;
+  --amazon-border: #e7e7e7;
+}
+
+body {
+  font-family: 'Amazon Ember', 'Helvetica Neue', Arial, sans-serif;
+  background-color: var(--amazon-light-gray);
+}
+
+/* Pipeline step animations */
+.pipeline-step {
+  transition: all 0.3s ease;
+}
+
+.pipeline-step.active {
+  transform: scale(1.1);
+}
+
+/* Product card hover effects */
+.product-card {
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.product-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important;
+}
+
+/* Chat message animations */
+.chat-message {
+  animation: slideIn 0.3s ease;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Loading animation */
+.loading-dots::after {
+  content: '';
+  animation: dots 1.5s infinite;
+}
+
+@keyframes dots {
+  0%, 20% { content: ''; }
+  40% { content: '.'; }
+  60% { content: '..'; }
+  80%, 100% { content: '...'; }
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--amazon-orange);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #e68900;
+}
