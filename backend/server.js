@@ -36,6 +36,70 @@ const client = new BedrockRuntimeClient({
   // API key is picked automatically from process.env.AWS_BEARER_TOKEN_BEDROCK
 });
 
+// Helper function to filter items for relevance using a Bedrock agent
+async function filterRelevantItems(query, items) {
+  if (!items || items.length === 0) {
+    return [];
+  }
+
+  try {
+    const modelInput = `Search Query: "${query}"\n\nItems to filter (JSON):\n${JSON.stringify(
+      items.map((item) => ({ title: item.title, snippet: item.snippet })),
+      null,
+      2
+    )}`;
+
+    const messages = [
+      { role: "user", content: [{ text: modelInput }] },
+      {
+        role: "assistant",
+        content: [
+          {
+            text:
+              "You are the Relevance Filtering Agent. Your task is to determine if the provided items are relevant to the user's search query. An item is relevant if its title or snippet directly relates to the search query. " +
+              "Analyze the provided JSON array of items. Return ONLY a JSON object with a key 'relevantIndices' containing an array of the 0-based indices of the items that you deem relevant. " +
+              'For example: {"relevantIndices": [0, 2, 4]}. Do not add explanations or any other text.',
+          },
+        ],
+      },
+    ];
+
+    const modelId = "apac.amazon.nova-micro-v1:0";
+    const command = new ConverseCommand({ modelId, messages });
+    const response = await client.send(command);
+
+    const outputText = response.output?.message?.content?.[0]?.text ?? "";
+    const match = outputText.match(/\{[\s\S]*\}/);
+    if (!match) {
+      console.warn(
+        "Relevance filter: No JSON object found in model output. Returning all items."
+      );
+      return items; // Fallback
+    }
+
+    const { relevantIndices } = JSON.parse(match[0]);
+
+    if (!Array.isArray(relevantIndices)) {
+      console.warn(
+        "Relevance filter: Model did not return a valid 'relevantIndices' array. Returning all items."
+      );
+      return items; // Fallback
+    }
+
+    const relevantItems = items.filter((_, index) =>
+      relevantIndices.includes(index)
+    );
+    console.log(
+      `Relevance filter: Kept ${relevantItems.length} of ${items.length} items.`
+    );
+    return relevantItems;
+  } catch (err) {
+    console.error("Bedrock API error during relevance filtering:", err);
+    // Fallback: if filtering fails, return the original items to not break the flow
+    return items;
+  }
+}
+
 //Route of example starting hello world
 app.get("/api/hello", (req, res) => {
   res.json({ message: "Hello from backend!" });
@@ -444,8 +508,10 @@ app.post("/api/search/forum", async (req, res) => {
       allResults.push(...mapped);
     }
 
-    console.log("Combined results:", allResults);
-    res.json({ results: allResults });
+    const filteredResults = await filterRelevantItems(query, allResults);
+
+    console.log("Combined and filtered forum results:", filteredResults);
+    res.json({ results: filteredResults });
   } catch (error) {
     console.error("Custom Search API error:", error.message);
     res.status(500).json({
@@ -495,8 +561,10 @@ app.post("/api/search/marketplace", async (req, res) => {
       allResults.push(...mapped);
     }
 
-    console.log("Combined results:", allResults);
-    res.json({ results: allResults });
+    const filteredResults = await filterRelevantItems(query, allResults);
+
+    console.log("Combined and filtered marketplace results:", filteredResults);
+    res.json({ results: filteredResults });
   } catch (error) {
     console.error("Custom Search API error:", error.message);
     res.status(500).json({
