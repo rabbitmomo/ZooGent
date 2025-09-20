@@ -161,8 +161,8 @@ export default function HomePage() {
         return false;
       });
       
-      // Return top 10 distinct results
-      return distinctResults.slice(0, 10);
+      // Return top 20 distinct results
+      return distinctResults.slice(0, 20);
 
     } catch (err) {
       console.error("Marketplace Search API error:", err);

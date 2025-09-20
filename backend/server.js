@@ -16,7 +16,7 @@ dotenv.config();
 const MARKETPLACE_ALLOWED_DOMAINS = [
   "shopee.com.my",
   "lazada.com.my",
-  "tiktok.com",
+  "tiktok.com/shop/my",
   "temu.com",
   "amazon.com"
 ];
@@ -29,7 +29,7 @@ const DISCUSSION_ALLOWED_DOMAINS = [
   "tiktok.com",
   "reddit.com"
 ];
-const RESULTS_PER_DOMAIN = 5;
+const RESULTS_PER_DOMAIN = 10;
 
 const client = new BedrockRuntimeClient({
   region: "ap-southeast-1", // Singapore region  (APAC region, Malaysia isn't available for this service)
@@ -56,7 +56,9 @@ async function filterRelevantItems(query, items) {
         content: [
           {
             text:
-              "You are the Relevance Filtering Agent. Your task is to determine if the provided items are relevant to the user's search query. An item is relevant if its title or snippet directly relates to the search query. " +
+              "You are a strict Relevance Filtering Agent. Your task is to determine if the provided discussion forum items are highly relevant to the user's search query. " +
+              "A discussion is relevant only if its title or snippet substantively discusses the product or topic in the search query, focusing on aspects like quality, reviews, or user experiences. " +
+              "Vague mentions or unrelated topics in a similar context are not relevant. " +
               "Analyze the provided JSON array of items. Return ONLY a JSON object with a key 'relevantIndices' containing an array of the 0-based indices of the items that you deem relevant. " +
               'For example: {"relevantIndices": [0, 2, 4]}. Do not add explanations or any other text.',
           },
@@ -126,14 +128,15 @@ app.post("/api/bedrock/searchAgent", async (req, res) => {
         content: [
           {
             text:
-              "You are the Product Identification Agent of project ZooGent. " +
-              "Your task is to analyze the user's message to identify the specific product they are looking for. " +
-              "The user might describe it vaguely (e.g., 'a good phone for gaming') or name it directly. " +
-              "If the user's request is vague, determine the product category and suggest a clearer product name. " +
-              "If the user knows what they want, confirm the product name. " +
-              "Output ONLY the identified product name, ready for the next step. " +
-              "For example, if the user says 'I want a cheap phone with a good camera', you could output 'budget smartphone with a good camera'. " +
-              "If they say 'iPhone 15', output 'iPhone 15'. Provide only the product name and nothing else.",
+              "You are a multilingual Product Identification Agent for project ZooGent, with a specialization in the Malaysian market. Your task is to analyze the user's message, which may be in English or Bahasa Melayu, to identify the specific product, service, or topic they are looking for.\n" +
+              "- If the user's query is in a language other than English, maintain the original language and terms.\n" +
+              "- If the query contains Malaysian-specific terms (e.g., 'Nasi Lemak', 'Proton X50'), recognize them as valid product/topic names.\n" +
+              "- If you encounter a term you do not understand, do not guess or translate it into an unrelated English word. Instead, use the original term directly in the output.\n" +
+              "- Your output must be ONLY the identified product name, ready for the next step. For example:\n" +
+              "  - If the user says 'kereta sewa murah', output 'kereta sewa murah'.\n" +
+              "  - If the user says 'Nasi Kelabur', output 'Nasi Kelabur'.\n" +
+              "  - If the user says 'best phone under RM1000', output 'best phone under RM1000'.\n" +
+              "Provide only the product name and nothing else.",
           },
         ],
       },
@@ -510,8 +513,7 @@ app.post("/api/search/forum", async (req, res) => {
 
     const filteredResults = await filterRelevantItems(query, allResults);
 
-    console.log("Combined and filtered forum results:", filteredResults);
-    res.json({ results: filteredResults });
+    res.json({ results: filteredResults.slice(0, 4) });
   } catch (error) {
     console.error("Custom Search API error:", error.message);
     res.status(500).json({
