@@ -174,7 +174,7 @@ app.post("/api/bedrock/productRecommendAgent", async (req, res) => {
         content: [
           {
             text:
-              "You are ProductRecommendAgent. " +
+              "1. You are ProductRecommendAgent. " +
               "Read the user's request and the forum search results **as optional context**, " +
               "but you are free to use your own broad knowledge of the market to recommend the best-matching products. " +
               "Do not limit yourself to only the forum text. " +
