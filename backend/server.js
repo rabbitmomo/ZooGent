@@ -258,6 +258,64 @@ app.post("/api/bedrock/smartQueryAgent", async (req, res) => {
   }
 });
 
+// Bedrock Match Agent route: rank given products by suitability for the user's request
+app.post("/api/bedrock/matchAgent", async (req, res) => {
+  const { userMessage, products } = req.body;
+
+  if (!userMessage) {
+    return res.status(400).json({ error: "Missing 'userMessage' in request body" });
+  }
+  if (!Array.isArray(products) || products.length === 0) {
+    return res.status(400).json({ error: "Missing or empty 'products' array in request body" });
+  }
+
+  try {
+    // Pass the full product objects to the model
+    const modelInput = `User's original request: "${userMessage}"\n\nProduct candidates (JSON):
+${JSON.stringify(products, null, 2)}`;
+
+    const messages = [
+      {
+        role: "user",
+        content: [{ text: modelInput }]
+      },
+      {
+        role: "assistant",
+        content: [{
+          text:
+            "You are an expert Product Matching and Ranking Agent. Your critical task is to analyze a list of product candidates and rank them based on how well they fit a user's original request. Carefully consider all user criteria, such as price (cheap, affordable), quality (durable, high-quality, top-rated), and specific features. " +
+            "Return ONLY a JSON object with a 'products' key containing an array of the FULL original product objects, sorted from most to least relevant. Do not alter the objects. Do not add explanations."
+        }]
+      }
+    ];
+
+    const modelId = "apac.amazon.nova-pro-v1:0";
+    const command = new ConverseCommand({ modelId, messages });
+    const response = await client.send(command);
+
+    const outputText = response.output?.message?.content?.[0]?.text ?? "";
+    const match = outputText.match(/\{[\s\S]*\}/);
+    if (!match) {
+      // Fallback to returning original products if parsing fails
+      console.warn("MatchAgent: No JSON object found in model output. Returning original order.");
+      return res.json({ products: products });
+    }
+
+    const ranked = JSON.parse(match[0]);
+    if (!ranked.products) {
+      console.warn("MatchAgent: No 'products' key in parsed JSON. Returning original order.");
+      return res.json({ products: products });
+    }
+
+    res.json(ranked);
+
+  } catch (err) {
+    console.error("Bedrock API error in matchAgent:", err);
+    // Fallback on error
+    res.status(500).json({ products: products, error: "Ranking failed", details: err.message });
+  }
+});
+
 // Bedrock Final Summary Agent
 app.post("/api/bedrock/finalSummaryAgent", async (req, res) => {
   const { userRequest, products } = req.body;

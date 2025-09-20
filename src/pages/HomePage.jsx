@@ -88,6 +88,24 @@ export default function HomePage() {
     }
   };
 
+  const callMatchAgent = async (userMessage, products) => {
+    try {
+      if (!products || products.length === 0) return [];
+
+      const res = await fetch(`${BASE_URL}/api/bedrock/matchAgent`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userMessage, products }),
+      });
+      const data = await res.json();
+      // Return the ranked products, or the original list as a fallback
+      return data.products || products;
+    } catch (err) {
+      console.error("MatchAgent API error:", err);
+      return products; // Fallback to unranked products on error
+    }
+  };
+
   // Call Custom Marketplace Search API for Top 10 Distinct Products
   const callMarketplaceSearch = async (queries) => {
     try {
@@ -123,8 +141,7 @@ export default function HomePage() {
         return false;
       });
       
-      // Return top 20 distinct results
-      return distinctResults.slice(0, 20);
+      return distinctResults;
 
     } catch (err) {
       console.error("Marketplace Search API error:", err);
@@ -176,14 +193,18 @@ export default function HomePage() {
 
       // Step 5: Marketplace search using the smart queries
       setCurrentStep(5);
-      const marketplaceProducts = await callMarketplaceSearch(smartQueries);
+      const marketplaceCandidates = await callMarketplaceSearch(smartQueries);
 
-      // Step 6: Get final summary
+      // Step 6: Final Ranking of all candidates
       setCurrentStep(6);
-      const finalSummary = await callFinalSummaryAgent(userMessage, marketplaceProducts);
+      const rankedProducts = await callMatchAgent(userMessage, marketplaceCandidates);
 
-      // Step 7: Complete
+      // Step 7: Get final summary
       setCurrentStep(7);
+      const finalSummary = await callFinalSummaryAgent(userMessage, rankedProducts.slice(0, 20));
+
+      // Step 8: Complete
+      setCurrentStep(8);
 
       setMessages((prev) => [
         ...prev,
@@ -194,7 +215,7 @@ export default function HomePage() {
             searchQuery: rewrittenQuery,
             forumResults: Array.isArray(forumResults) ? forumResults : [],
             summary: forumSummary,
-            marketplaceResults: marketplaceProducts,
+            marketplaceResults: rankedProducts.slice(0, 20),
           },
         },
       ]);
@@ -215,8 +236,9 @@ export default function HomePage() {
     { id: 3, name: "Forum Search", description: "Searching community discussions" },
     { id: 4, name: "Summarize", description: "AI summarizes findings" },
     { id: 5, name: "Marketplace", description: "Searching online stores" },
-    { id: 6, name: "Conclusion", description: "AI writes a conclusion" },
-    { id: 7, name: "Complete", description: "Results ready!" }
+    { id: 6, name: "Final Ranking", description: "AI ranks all products" },
+    { id: 7, name: "Conclusion", description: "AI writes a conclusion" },
+    { id: 8, name: "Complete", description: "Results ready!" }
   ];
 
     return (
