@@ -1,9 +1,10 @@
 import React, { useState } from "react";
 
-export default function ChatBox() {
+export default function HomePage() {
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [currentStep, setCurrentStep] = useState(0);
 
   const BASE_URL = "https://dacp3uiyfj.ap-southeast-1.awsapprunner.com";
 
@@ -39,10 +40,8 @@ export default function ChatBox() {
       if (!data.results || !data.results.length)
         return "No forum results found.";
 
-      // Format results for chat display
-      return data.results
-        .map((item) => `• ${item.title} (${item.domain})\n${item.link}`)
-        .join("\n\n");
+      // Return the raw results for better display
+      return data.results;
     } catch (err) {
       console.error("Forum Search API error:", err);
       return "Error fetching forum results.";
@@ -50,8 +49,13 @@ export default function ChatBox() {
   };
 
   // Call Bedrock Summarize Agent with forum results
-  const callSummarizeAgent = async (forumMessage) => {
+  const callSummarizeAgent = async (forumResults) => {
     try {
+      // Format forum results for summarization
+      const forumMessage = Array.isArray(forumResults) 
+        ? forumResults.map((item) => `• ${item.title} (${item.domain})\n${item.link}`).join("\n\n")
+        : forumResults;
+
       const res = await fetch(`${BASE_URL}/api/bedrock/summarizeAgent`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -72,10 +76,12 @@ export default function ChatBox() {
   // Call Bedrock Product Recommend Agent with user request and forum results
   const callProductRecommendAgent = async (userRequest, forumResults) => {
     try {
-      const forumResultsArray = forumResults
-        .split("\n\n")
-        .map((item) => item.trim())
-        .filter(Boolean);
+      const forumResultsArray = Array.isArray(forumResults)
+        ? forumResults.map((item) => `• ${item.title} (${item.domain})\n${item.link}`)
+        : forumResults
+            .split("\n\n")
+            .map((item) => item.trim())
+            .filter(Boolean);
 
       const res = await fetch(`${BASE_URL}/api/bedrock/productRecommendAgent`, {
         method: "POST",
@@ -156,7 +162,7 @@ export default function ChatBox() {
           const topResults = data.results.slice(0, 3);
           topResults.forEach((r) => {
             resultsArray.push(
-              `• ${product} (${r.domain}):\n  ${r.title}\n  ${r.link}\n  ${r.snippet}`
+              `• ${product} (${r.domain}):\n  ${r.title}\n  ${r.link}\n  ${r.snippet}${r.image ? `\n  ${r.image}` : ''}`
             );
           });
         }
@@ -177,38 +183,59 @@ export default function ChatBox() {
     setMessages((prev) => [...prev, { role: "user", text: userMessage }]);
     setInput("");
     setLoading(true);
+    setCurrentStep(0);
 
     try {
       // Step 1: Rewrite user message for search
+      setCurrentStep(1);
       const rewrittenQuery = await callSearchAgent(userMessage);
 
       // Step 2: Search forums with rewritten query
+      setCurrentStep(2);
       const forumResults = await callForumSearch(rewrittenQuery);
 
       // Step 3: Summarize forum results
+      setCurrentStep(3);
       const forumSummary = await callSummarizeAgent(forumResults);
 
       // Step 4: Get product recommendations
+      setCurrentStep(4);
       const productRecommendations = await callProductRecommendAgent(
         userMessage,
         forumResults
       );
 
       // Step 5: Rank products with Match Agent
+      setCurrentStep(5);
       const rankedProducts = await callMatchAgent(
         userMessage,
         productRecommendations
       );
 
       // Step 6: Marketplace search for top 3 ranked products
+      setCurrentStep(6);
       const marketplaceResults = await callMarketplaceSearch(rankedProducts);
 
-      // Step 7: Combine everything into one bot message
-      const combinedBotMessage = `Search Query:\n${rewrittenQuery}\n\nForum Results:\n${forumResults}\n\nSummary:\n${forumSummary}\n\nProduct Recommendations:\n${productRecommendations}\n\nRanked Products:\n${rankedProducts}\n\nMarketplace Top Results:\n${marketplaceResults}`;
+      // Step 7: Complete
+      setCurrentStep(7);
+
+      // Parse marketplace results for better display
+      const parsedResults = parseMarketplaceResults(marketplaceResults);
 
       setMessages((prev) => [
         ...prev,
-        { role: "bot", text: combinedBotMessage },
+        { 
+          role: "bot", 
+          text: `Here are your personalized product recommendations:`,
+          results: {
+            searchQuery: rewrittenQuery,
+            forumResults: Array.isArray(forumResults) ? forumResults : [],
+            summary: forumSummary,
+            recommendations: productRecommendations,
+            rankedProducts,
+            marketplaceResults: parsedResults
+          }
+        },
       ]);
     } catch (err) {
       setMessages((prev) => [
@@ -217,105 +244,318 @@ export default function ChatBox() {
       ]);
     } finally {
       setLoading(false);
+      setCurrentStep(0);
     }
   };
 
-  return (
-    <div
-  className="d-flex flex-column align-items-center p-4"
-  style={{
-    minHeight: "100vh",//800080
-    background: "linear-gradient(180deg, #e6e6fa 0%, #800080 100%)",
-    color: "#fff",
-  }}
->
-  <h2 className="mb-4" style={{ color: "#000000" }}>ZooGent Chat</h2>
+  const parseMarketplaceResults = (results) => {
+    if (!results || results === "No marketplace search results.") return [];
+    
+    const lines = results.split('\n\n');
+    const products = [];
+    
+    lines.forEach(line => {
+      if (line.includes('•') && line.includes('(') && line.includes('):')) {
+        const parts = line.split('\n');
+        if (parts.length >= 3) {
+          const title = parts[0].replace('• ', '').split(' (')[0];
+          const domain = parts[0].match(/\(([^)]+)\)/)?.[1] || '';
+          const productTitle = parts[1].trim();
+          const link = parts[2].trim();
+          const snippet = parts[3]?.trim() || '';
+          const image = parts[4]?.trim() || '';
+          
+          products.push({
+            title: productTitle,
+            domain,
+            link,
+            snippet,
+            image,
+            category: title
+          });
+        }
+      }
+    });
+    
+    return products;
+  };
 
-  <div
-    className="border rounded p-3 mb-3 w-100"
-    style={{
-      maxWidth: 600,
-      height: 400,
-      overflowY: "auto",
-      background: "#ffffff",
-      borderColor: "#000000",
-    }}
-  >
-    {messages.map((m, idx) => (
-      <div
-        key={idx}
-        className={`d-flex mb-3 ${m.role === "user" ? "justify-content-end" : "justify-content-start"}`}
-      >
-        {/* Bot avatar on the left */}
-        {m.role === "bot" && (
-          <div
-            className="rounded-circle d-flex align-items-center justify-content-center me-2"
-            style={{
-              width: 32,
-              height: 32,
-              background: "#333",
-              color: "#fff",
-              fontWeight: "bold",
-            }}
-          >
-            Bot
+  const pipelineSteps = [
+    { id: 1, name: "Query Rewrite", description: "AI rewrites your question for better search" },
+    { id: 2, name: "Forum Search", description: "Searching community discussions" },
+    { id: 3, name: "Summarize", description: "AI summarizes findings" },
+    { id: 4, name: "Recommend", description: "Generate product recommendations" },
+    { id: 5, name: "Rank", description: "Rank products by relevance" },
+    { id: 6, name: "Marketplace", description: "Search real marketplaces" },
+    { id: 7, name: "Complete", description: "Results ready!" }
+  ];
+
+  return (
+    <div className="d-flex" style={{ minHeight: "100vh", backgroundColor: "#f8f9fa" }}>
+      {/* Main Content Area */}
+      <div className="flex-grow-1 p-4" style={{ maxWidth: "70%" }}>
+        <div className="mb-4">
+          <h1 className="h2 mb-3" style={{ color: "#232f3e", fontWeight: "600" }}>
+            ZooGent Product Assistant
+          </h1>
+          <p className="text-muted">
+            Get personalized product recommendations powered by AI and community insights
+          </p>
+        </div>
+
+        {/* Pipeline Visualization */}
+        <div className="card mb-4" style={{ border: "none", boxShadow: "0 2px 8px rgba(0,0,0,0.1)" }}>
+          <div className="card-body">
+            <h5 className="card-title mb-3" style={{ color: "#232f3e" }}>AI Processing Pipeline</h5>
+            <div className="d-flex flex-wrap justify-content-between">
+              {pipelineSteps.map((step, index) => (
+                <div key={step.id} className="text-center mb-3" style={{ width: "12%" }}>
+                  <div
+                    className="rounded-circle d-flex align-items-center justify-content-center mx-auto mb-2"
+                    style={{
+                      width: "50px",
+                      height: "50px",
+                      backgroundColor: currentStep >= step.id ? "#ff9900" : "#e7e7e7",
+                      color: currentStep >= step.id ? "white" : "#666",
+                      fontWeight: "bold",
+                      fontSize: "14px",
+                      transition: "all 0.3s ease"
+                    }}
+                  >
+                    {step.id}
+                  </div>
+                  <div style={{ fontSize: "12px", color: "#232f3e", fontWeight: "500" }}>
+                    {step.name}
+                  </div>
+                  <div style={{ fontSize: "10px", color: "#666" }}>
+                    {step.description}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Forum Results Display */}
+        {messages.length > 0 && messages[messages.length - 1].role === "bot" && messages[messages.length - 1].results && messages[messages.length - 1].results.forumResults.length > 0 && (
+          <div className="card mb-4" style={{ border: "none", boxShadow: "0 2px 8px rgba(0,0,0,0.1)" }}>
+            <div className="card-body">
+              <h5 className="card-title mb-3" style={{ color: "#232f3e" }}>Community Discussions</h5>
+              <div className="row">
+                {messages[messages.length - 1].results.forumResults.map((item, index) => (
+                  <div key={index} className="col-md-6 mb-3">
+                    <div className="card h-100" style={{ border: "1px solid #e7e7e7" }}>
+                      <div className="card-body p-3">
+                        <h6 className="card-title" style={{ fontSize: "14px", color: "#232f3e" }}>
+                          {item.title}
+                        </h6>
+                        <p className="card-text text-muted" style={{ fontSize: "12px" }}>
+                          {item.domain}
+                        </p>
+                        {item.image && (
+                          <div className="mb-2">
+                            <img 
+                              src={item.image} 
+                              alt={item.title}
+                              className="img-fluid rounded"
+                              style={{ 
+                                maxHeight: "150px", 
+                                width: "100%", 
+                                objectFit: "cover" 
+                              }}
+                              onError={(e) => {
+                                e.target.style.display = 'none';
+                              }}
+                            />
+                          </div>
+                        )}
+                        <div className="d-flex justify-content-between align-items-center">
+                          <small className="text-muted">{item.domain}</small>
+                          <a 
+                            href={item.link} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="btn btn-sm"
+                            style={{ 
+                              backgroundColor: "#ff9900", 
+                              border: "none", 
+                              color: "white",
+                              fontSize: "12px",
+                              padding: "4px 8px"
+                            }}
+                          >
+                            Read More
+                          </a>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         )}
 
-        {/* Message bubble */}
-        <div
-          className={`p-2 rounded`}
-          style={{
-            maxWidth: "70%",
-            whiteSpace: "pre-wrap",
-            background: m.role === "user" ? "#0d6efd" : "#0d6efd",
-            color: m.role === "user" ? "#fff" : "#eee",
-          }}
-        >
-          {m.text}
-        </div>
-
-        {/* User avatar on the right */}
-        {m.role === "user" && (
-          <div
-            className="rounded-circle d-flex align-items-center justify-content-center ms-2"
-            style={{
-              width: 32,
-              height: 32,
-              background: "#0d6efd",
-              color: "#fff",
-              fontWeight: "bold",
-            }}
-          >
-            You
+        {/* Product Results Display */}
+        {messages.length > 0 && messages[messages.length - 1].role === "bot" && messages[messages.length - 1].results && (
+          <div className="card" style={{ border: "none", boxShadow: "0 2px 8px rgba(0,0,0,0.1)" }}>
+            <div className="card-body">
+              <h5 className="card-title mb-3" style={{ color: "#232f3e" }}>Recommended Products</h5>
+              <div className="row">
+                {messages[messages.length - 1].results.marketplaceResults.map((product, index) => (
+                  <div key={index} className="col-md-4 mb-3">
+                    <div className="card h-100" style={{ border: "1px solid #e7e7e7" }}>
+                      <div className="card-body p-3">
+                        {product.image && (
+                          <div className="mb-2">
+                            <img 
+                              src={product.image} 
+                              alt={product.title}
+                              className="img-fluid rounded"
+                              style={{ 
+                                maxHeight: "120px", 
+                                width: "100%", 
+                                objectFit: "cover" 
+                              }}
+                              onError={(e) => {
+                                e.target.style.display = 'none';
+                              }}
+                            />
+                          </div>
+                        )}
+                        <h6 className="card-title" style={{ fontSize: "14px", color: "#232f3e" }}>
+                          {product.title}
+                        </h6>
+                        <p className="card-text text-muted" style={{ fontSize: "12px" }}>
+                          {product.snippet}
+                        </p>
+                        <div className="d-flex justify-content-between align-items-center">
+                          <small className="text-muted">{product.domain}</small>
+                          <a 
+                            href={product.link} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="btn btn-sm"
+                            style={{ 
+                              backgroundColor: "#ff9900", 
+                              border: "none", 
+                              color: "white",
+                              fontSize: "12px",
+                              padding: "4px 8px"
+                            }}
+                          >
+                            View
+                          </a>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         )}
       </div>
-    ))}
-  </div>
 
-  <form
-    onSubmit={handleSend}
-    className="d-flex w-100"
-    style={{ maxWidth: 600 }}
-  >
-    <input
-      className="form-control me-2"
-      placeholder="Type your message…"
-      value={input}
-      onChange={(e) => setInput(e.target.value)}
-      disabled={loading}
-      style={{
-        background: "#ffffff",
-        color: "#000000",
-        borderColor: "#444",
-      }}
-    />
-    <button type="submit" className="btn btn-primary" disabled={loading}>
-      {loading ? "Thinking…" : "Send"}
-    </button>
-  </form>
-</div>
+      {/* Right Sidebar - Chatbox */}
+      <div className="d-flex flex-column" style={{ width: "30%", minHeight: "100vh", backgroundColor: "white", borderLeft: "1px solid #e7e7e7" }}>
+        <div className="p-3 border-bottom" style={{ backgroundColor: "#232f3e" }}>
+          <h5 className="mb-0 text-white">Chat Assistant</h5>
+        </div>
+        
+        <div 
+          className="flex-grow-1 p-3"
+          style={{ 
+            height: "400px", 
+            overflowY: "auto",
+            backgroundColor: "#f8f9fa"
+          }}
+        >
+          {messages.map((m, idx) => (
+            <div
+              key={idx}
+              className={`d-flex mb-3 ${m.role === "user" ? "justify-content-end" : "justify-content-start"}`}
+            >
+              {m.role === "bot" && (
+                <div
+                  className="rounded-circle d-flex align-items-center justify-content-center me-2"
+                  style={{
+                    width: 32,
+                    height: 32,
+                    background: "#ff9900",
+                    color: "white",
+                    fontWeight: "bold",
+                    fontSize: "12px"
+                  }}
+                >
+                  AI
+                </div>
+              )}
 
+              <div
+                className={`p-2 rounded`}
+                style={{
+                  maxWidth: "80%",
+                  whiteSpace: "pre-wrap",
+                  background: m.role === "user" ? "#ff9900" : "white",
+                  color: m.role === "user" ? "white" : "#232f3e",
+                  border: m.role === "bot" ? "1px solid #e7e7e7" : "none",
+                  fontSize: "14px"
+                }}
+              >
+                {m.text}
+              </div>
+
+              {m.role === "user" && (
+                <div
+                  className="rounded-circle d-flex align-items-center justify-content-center ms-2"
+                  style={{
+                    width: 32,
+                    height: 32,
+                    background: "#232f3e",
+                    color: "white",
+                    fontWeight: "bold",
+                    fontSize: "12px"
+                  }}
+                >
+                  You
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+
+        <div className="p-3 border-top">
+          <form onSubmit={handleSend} className="d-flex">
+            <input
+              className="form-control me-2"
+              placeholder="Ask about products..."
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              disabled={loading}
+              style={{
+                border: "1px solid #e7e7e7",
+                borderRadius: "4px",
+                fontSize: "14px"
+              }}
+            />
+            <button 
+              type="submit" 
+              className="btn"
+              disabled={loading}
+              style={{
+                backgroundColor: "#ff9900",
+                border: "none",
+                color: "white",
+                fontWeight: "500",
+                padding: "8px 16px"
+              }}
+            >
+              {loading ? "..." : "Send"}
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
   );
 }
