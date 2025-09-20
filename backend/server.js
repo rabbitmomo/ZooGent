@@ -131,10 +131,11 @@ app.post("/api/bedrock/searchAgent", async (req, res) => {
               "You are a multilingual Product Identification Agent for project ZooGent, with a specialization in the Malaysian market. Your task is to analyze the user's message, which may be in English or Bahasa Melayu, to identify the specific product, service, or topic they are looking for.\n" +
               "- If the user's query is in a language other than English, maintain the original language and terms.\n" +
               "- If the query contains Malaysian-specific terms (e.g., 'Nasi Lemak', 'Proton X50'), recognize them as valid product/topic names.\n" +
+              "- If you detect a clear spelling mistake of a common word or phrase (e.g., 'Nasi Kelabur' instead of 'Nasi Kerabu'), correct it to the most likely intended term.\n" +
               "- If you encounter a term you do not understand, do not guess or translate it into an unrelated English word. Instead, use the original term directly in the output.\n" +
               "- Your output must be ONLY the identified product name, ready for the next step. For example:\n" +
               "  - If the user says 'kereta sewa murah', output 'kereta sewa murah'.\n" +
-              "  - If the user says 'Nasi Kelabur', output 'Nasi Kelabur'.\n" +
+              "  - If the user says 'Nasi Kelabur', output 'Nasi Kerabu'.\n" +
               "  - If the user says 'best phone under RM1000', output 'best phone under RM1000'.\n" +
               "Provide only the product name and nothing else.",
           },
@@ -467,6 +468,55 @@ app.post("/api/bedrock/productAdvertisingAgent", async (req, res) => {
       error: "Bedrock request failed",
       details: err.message
     });
+  }
+});
+
+
+// Bedrock Final Summary Agent
+app.post("/api/bedrock/finalSummaryAgent", async (req, res) => {
+  const { userRequest, products } = req.body;
+
+  if (!userRequest) {
+    return res.status(400).json({ error: "Missing 'userRequest' in request body" });
+  }
+  if (!Array.isArray(products)) {
+    return res.status(400).json({ error: "Missing or invalid 'products' array in request body" });
+  }
+
+  try {
+    const productTitles = products.map(p => p.title || p).join(', ');
+
+    const modelInput = `User's request: "${userRequest}"\n\nTop products found: [${productTitles}]`;
+
+    const messages = [
+      {
+        role: "user",
+        content: [{ text: modelInput }]
+      },
+      {
+        role: "assistant",
+        content: [{
+          text:
+            "You are the Final Summary Agent. You will be given the user's original request and a list of the top products that were found. " +
+            "Your task is to write a very brief, friendly, and conclusive message for the chat window. " +
+            "Mention the product category you searched for and confirm that you've found some promising options. " +
+            "For example: 'I've analyzed your request for a budget-friendly gaming chair and found several great options for you to consider below!' or 'Based on your interest in Nasi Kerabu, I've found some highly-rated local listings and discussions.' " +
+            "The message should be a single, short paragraph. Output ONLY the summary text, with no extra formatting or JSON."
+        }]
+      }
+    ];
+
+    const modelId = "apac.amazon.nova-micro-v1:0";
+    const command = new ConverseCommand({ modelId, messages });
+    const response = await client.send(command);
+
+    const summary = response.output?.message?.content?.[0]?.text ?? "Here are your personalized product recommendations:";
+
+    res.json({ summary: summary.trim() });
+
+  } catch (err) {
+    console.error("Bedrock API error in finalSummaryAgent:", err);
+    res.status(500).json({ summary: "Here are your personalized product recommendations:", error: "Summary generation failed", details: err.message });
   }
 });
 
