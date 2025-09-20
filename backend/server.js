@@ -102,7 +102,7 @@ async function filterRelevantItems(query, items) {
   }
 }
 
-//Route of example starting hello world
+//error indicator for backend frontend comms
 app.get("/api/hello", (req, res) => {
   res.json({ message: "Hello from backend!" });
 });
