@@ -191,8 +191,8 @@ app.post("/api/bedrock/productRecommendAgent", async (req, res) => {
               "Read the user's request and the forum search results **as optional context**, " +
               "but you are free to use your own broad knowledge of the market to recommend the best-matching products. " +
               "Do not limit yourself to only the forum text. " +
-              "Return at least 1 and at most 5 **specific, currently-sold best-matching products with full product names including model numbers**. " +
-              "Output ONLY a numbered list in the format '1. Brand ModelNumber'. " +
+              "Return at least 1 and at most 5 **specific, currently-sold best-matching products with full product names including their exact model numbers**. " +
+              "Output ONLY a numbered list in the format '1. Product name + ModelNumber'. " +
               "Do not add explanations or extra text.",
           },
         ],
