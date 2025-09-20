@@ -7,13 +7,17 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+# Node modules and build output
 node_modules
 backend/node_modules
+cdk.out
 dist
 dist-ssr
+.history
+.env
 *.local
 
-# Editor directories and files
+# Editor files
 .vscode/*
 !.vscode/extensions.json
 .idea
@@ -24,8 +28,5 @@ dist-ssr
 *.sln
 *.sw?
 
-.history/
-.node_modules/
-.env
-
+# Backend env
 backend/.env

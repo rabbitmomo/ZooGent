@@ -5,7 +5,7 @@ export default function ChatBox() {
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  const BASE_URL = "http://localhost:5000";
+  const BASE_URL = "https://dacp3uiyfj.ap-southeast-1.awsapprunner.com";
 
   // Call Bedrock Search Agent to rewrite user message
   const callSearchAgent = async (userMessage) => {
