@@ -73,86 +73,48 @@ export default function HomePage() {
     }
   };
 
-  // Call Bedrock Product Recommend Agent with user request and forum results
-  const callProductRecommendAgent = async (userRequest, forumResults) => {
+  const callSmartQueryAgent = async (userRequest, productTopic) => {
     try {
-      const forumResultsArray = Array.isArray(forumResults)
-        ? forumResults.map((item) => `• ${item.title} (${item.domain})\n${item.link}`)
-        : forumResults
-            .split("\n\n")
-            .map((item) => item.trim())
-            .filter(Boolean);
-
-      const res = await fetch(`${BASE_URL}/api/bedrock/productRecommendAgent`, {
+      const res = await fetch(`${BASE_URL}/api/bedrock/smartQueryAgent`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          userRequest,
-          searchResults: forumResultsArray,
-        }),
+        body: JSON.stringify({ userRequest, productTopic }),
       });
-
       const data = await res.json();
-      if (!data.products || !data.products.length)
-        return "No product recommendations.";
-      return data.products.map((p, i) => `${i + 1}. ${p}`).join("\n");
+      return data.queries && data.queries.length > 0 ? data.queries : [productTopic];
     } catch (err) {
-      console.error("ProductRecommendAgent API error:", err);
-      return "Error fetching product recommendations.";
-    }
-  };
-
-  // Call Bedrock Match Agent with user message and product list
-  const callMatchAgent = async (userMessage, products) => {
-    try {
-      // Ensure products is an array of plain names
-      const productArray = Array.isArray(products)
-        ? products
-        : products
-            .split("\n")
-            .map((p) => p.replace(/^\d+\.\s*/, "").trim()) // remove "1. " etc.
-            .filter(Boolean);
-
-      if (!productArray.length) return "No ranked products.";
-
-      const res = await fetch(`${BASE_URL}/api/bedrock/matchAgent`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          userMessage,
-          products: productArray, // pass as array
-        }),
-      });
-
-      const data = await res.json();
-      if (!data.products || !data.products.length) return "No ranked products.";
-
-      return data.products.map((p, i) => `${i + 1}. ${p}`).join("\n");
-    } catch (err) {
-      console.error("MatchAgent API error:", err);
-      return "Error fetching ranked products.";
+      console.error("SmartQueryAgent API error:", err);
+      return [productTopic]; // Fallback to the basic topic
     }
   };
 
   // Call Custom Marketplace Search API for Top 10 Distinct Products
-  const callMarketplaceSearch = async (query) => {
+  const callMarketplaceSearch = async (queries) => {
     try {
-      if (!query) return [];
+      if (!queries || queries.length === 0) return [];
 
-      const res = await fetch(`${BASE_URL}/api/search/marketplace`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query }),
-      });
-      const data = await res.json();
+      let allResults = [];
+      // Use Promise.all to run searches in parallel for speed
+      await Promise.all(queries.map(async (query) => {
+        const res = await fetch(`${BASE_URL}/api/search/marketplace`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ query }),
+        });
+        const data = await res.json();
+        if (data.results && data.results.length > 0) {
+          allResults = allResults.concat(data.results);
+        }
+      }));
 
-      if (!data.results || !data.results.length) {
+
+      if (allResults.length === 0) {
         return [];
       }
 
       // Deduplicate results by title
       const uniqueTitles = new Set();
-      const distinctResults = data.results.filter(result => {
+      const distinctResults = allResults.filter(result => {
         const normalizedTitle = result.title.toLowerCase();
         if (!uniqueTitles.has(normalizedTitle)) {
           uniqueTitles.add(normalizedTitle);
@@ -200,38 +162,28 @@ export default function HomePage() {
       setCurrentStep(1);
       const rewrittenQuery = await callSearchAgent(userMessage);
 
-      // Step 2: Search forums with rewritten query
+      // Step 2: Generate Smart Queries
       setCurrentStep(2);
+      const smartQueries = await callSmartQueryAgent(userMessage, rewrittenQuery);
+
+      // Step 3: Search forums with rewritten query
+      setCurrentStep(3);
       const forumResults = await callForumSearch(rewrittenQuery);
 
-      // Step 3: Summarize forum results
-      setCurrentStep(3);
+      // Step 4: Summarize forum results
+      setCurrentStep(4);
       const forumSummary = await callSummarizeAgent(forumResults);
 
-      // Step 4: Get product recommendations
-      setCurrentStep(4);
-      const productRecommendations = await callProductRecommendAgent(
-        userMessage,
-        forumResults
-      );
-
-      // Step 5: Rank products with Match Agent
+      // Step 5: Marketplace search using the smart queries
       setCurrentStep(5);
-      const rankedProducts = await callMatchAgent(
-        userMessage,
-        productRecommendations
-      );
+      const marketplaceProducts = await callMarketplaceSearch(smartQueries);
 
-      // Step 6: Marketplace search using the rewritten query
+      // Step 6: Get final summary
       setCurrentStep(6);
-      const marketplaceProducts = await callMarketplaceSearch(rewrittenQuery);
-
-      // Step 7: Get final summary
-      setCurrentStep(7);
       const finalSummary = await callFinalSummaryAgent(userMessage, marketplaceProducts);
 
-      // Step 8: Complete
-      setCurrentStep(8);
+      // Step 7: Complete
+      setCurrentStep(7);
 
       setMessages((prev) => [
         ...prev,
@@ -242,8 +194,6 @@ export default function HomePage() {
             searchQuery: rewrittenQuery,
             forumResults: Array.isArray(forumResults) ? forumResults : [],
             summary: forumSummary,
-            recommendations: productRecommendations,
-            rankedProducts,
             marketplaceResults: marketplaceProducts,
           },
         },
@@ -260,14 +210,13 @@ export default function HomePage() {
   };
 
   const pipelineSteps = [
-    { id: 1, name: "Query Rewrite", description: "AI rewrites your question for better search" },
-    { id: 2, name: "Forum Search", description: "Searching community discussions" },
-    { id: 3, name: "Summarize", description: "AI summarizes findings" },
-    { id: 4, name: "Recommend", description: "Generate product recommendations" },
-    { id: 5, name: "Rank", description: "Rank products by relevance" },
-    { id: 6, name: "Marketplace", description: "Search real marketplaces" },
-    { id: 7, name: "Summarize", description: "AI writes a conclusion" },
-    { id: 8, name: "Complete", description: "Results ready!" }
+    { id: 1, name: "Rewrite", description: "AI rewrites your question" },
+    { id: 2, name: "Smart Query", description: "Generating strategic searches" },
+    { id: 3, name: "Forum Search", description: "Searching community discussions" },
+    { id: 4, name: "Summarize", description: "AI summarizes findings" },
+    { id: 5, name: "Marketplace", description: "Searching online stores" },
+    { id: 6, name: "Conclusion", description: "AI writes a conclusion" },
+    { id: 7, name: "Complete", description: "Results ready!" }
   ];
 
     return (
@@ -408,19 +357,19 @@ export default function HomePage() {
           </div>
   
           {/* Right Sidebar - Chatbox */}
-          <div className="d-flex flex-column" style={{ width: "30%", height: "100vh", backgroundColor: "white", borderLeft: "1px solid #e7e7e7" }}>
+        <div className="d-flex flex-column" style={{ flex: "0 0 30%", height: "100vh", backgroundColor: "white", borderLeft: "1px solid #e7e7e7" }}>
             <div className="p-3 border-bottom" style={{ backgroundColor: "#232f3e" }}>
               <h5 className="mb-0 text-white">Chat Assistant</h5>
             </div>
             
-            <div 
-              className="flex-grow-1 p-3"
-              style={{ 
-                overflowY: "auto",
-                backgroundColor: "#f8f9fa"
-              }}
-            >
-              {messages.map((m, idx) => (
+                      <div 
+                        className="flex-grow-1 p-3"
+                        style={{ 
+                          overflowY: "auto",
+                          backgroundColor: "#f8f9fa",
+                          minHeight: 0
+                        }}
+                      >              {messages.map((m, idx) => (
                 <div
                   key={idx}
                   className={`d-flex mb-3 ${m.role === "user" ? "justify-content-end" : "justify-content-start"}`}

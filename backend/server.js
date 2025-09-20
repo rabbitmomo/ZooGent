@@ -186,12 +186,9 @@ app.post("/api/bedrock/summarizeAgent", async (req, res) => {
         content: [
           {
             text:
-              "You are the Search Keyword Agent of project ZooGent. " +
-              "You will be given a product name. Your job is to generate a set of 3-5 diverse and effective search queries " +
-              "to find the best deals and high-quality options for this product on e-commerce sites like Amazon, Shopee, and Lazada. " +
-              "Focus on keywords that capture price, quality, and popularity. " +
-              "Output ONLY the search queries, separated by newlines. For example, for 'ergonomic office chair', you might output:" +
-              "\n'best budget ergonomic office chair'\n'top rated ergonomic chair 2025'\n'ergonomic office chair under $200'\n'premium mesh ergonomic chair'",
+              "You are SummarizeAgent. Your task is to read the provided forum search results and produce a single, well-structured paragraph summarizing the key points. " +
+              "Highlight the main features, advantages, disadvantages, and overall sentiment about the product being discussed. " +
+              "Limit your summary to 100 words and base it only on the information given in the search results.",
           },
         ],
       },
@@ -211,169 +208,28 @@ app.post("/api/bedrock/summarizeAgent", async (req, res) => {
   }
 });
 
-// Bedrock Product Recommend Agent route
-app.post("/api/bedrock/productRecommendAgent", async (req, res) => {
-  const { userRequest, searchResults } = req.body;
+// Bedrock Smart Query Agent
+app.post("/api/bedrock/smartQueryAgent", async (req, res) => {
+  const { userRequest, productTopic } = req.body;
 
-  if (!userRequest) {
-    return res
-      .status(400)
-      .json({ error: "Missing 'userRequest' in request body" });
-  }
-  if (!Array.isArray(searchResults) || searchResults.length === 0) {
-    console.warn(
-      "No forum search results supplied—will rely on fallback if needed."
-    );
-  }
-
-  // ✅ Build one combined prompt string up-front
-  const forumPrompt = `User request:\n${userRequest}\n\nForum results:\n${JSON.stringify(
-    searchResults || [],
-    null,
-    2
-  )}`;
-
-  // Helper: parse "1. Oppo A70\n2. Xiaomi..." -> ["Oppo A70", "Xiaomi ..."]
-  function extractProducts(text) {
-    const matches = text.match(/\d+\.\s*([^\n]+)/g) || [];
-    return matches.map((m) => m.replace(/^\d+\.\s*/, "").trim());
-  }
-
-  // Model call using combined string
-  async function callAgentWithForums() {
-    const messages = [
-      {
-        role: "user", // start with user, single message
-        content: [{ text: forumPrompt }],
-      },
-      {
-        role: "assistant", // instructions as assistant
-        content: [
-          {
-            text:
-              "You are the Product List Agent. You will receive a user's request and a list of search results from online marketplaces. " +
-              "Your task is to analyze these and identify the top 5 products that best match the user's needs (e.g., budget, quality, brand). " +
-              "Output ONLY a clean, numbered list of the top 5 product titles as found in the search results. " +
-              "Format: `1. Full Product Title`. Do not add explanations or any text outside the list.",
-          },
-        ],
-      },
-    ];
-
-    const modelId = "apac.amazon.nova-pro-v1:0";
-    const command = new ConverseCommand({ modelId, messages });
-    const response = await client.send(command);
-
-    const outputText =
-      response.output?.message?.content?.[0]?.text ??
-      response.output?.content?.[0]?.text ??
-      "";
-
-    return extractProducts(outputText);
-  }
-
-  // Fallback model call using only the user request
-  async function callAgentUserOnly() {
-    const messages = [
-      {
-        role: "user",
-        content: [{ text: `User request:\n${userRequest}` }],
-      },
-      {
-        role: "assistant",
-        content: [
-          {
-            text:
-              "You are the Product List Agent. The user has provided a request but no search results are available. " +
-              "Based on your general knowledge, recommend 1-5 specific, currently-sold products that match the user's request. " +
-              "Prioritize products that are popular, high-quality, or good value. " +
-              "Output ONLY a clean, numbered list in the format: `1. Brand – Product Name`. Do not add explanations.",
-          },
-        ],
-      },
-    ];
-
-    const modelId = "apac.amazon.nova-pro-v1:0";
-    const command = new ConverseCommand({ modelId, messages });
-    const response = await client.send(command);
-
-    const outputText =
-      response.output?.message?.content?.[0]?.text ??
-      response.output?.content?.[0]?.text ??
-      "";
-
-    return extractProducts(outputText);
-  }
-
-  async function getProductsWithRetry(maxAttempts = 3) {
-    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-      const products = await callAgentWithForums();
-      if (products.length > 0) {
-        console.log(`Success on attempt ${attempt}`);
-        return products;
-      }
-      console.warn(`Attempt ${attempt} returned no products. Retrying...`);
-    }
-    return [];
+  if (!userRequest || !productTopic) {
+    return res.status(400).json({ error: "Missing 'userRequest' or 'productTopic' in request body" });
   }
 
   try {
-    let products = await getProductsWithRetry(3);
+    const modelInput = `User's original request: "${userRequest}"\nCore product topic: "${productTopic}"`;
 
-    if (products.length === 0) {
-      console.warn(
-        "All forum-based attempts failed. Falling back to user-request-only suggestion."
-      );
-      products = await callAgentUserOnly();
-    }
-
-    if (products.length === 0) {
-      return res.status(502).json({
-        error:
-          "No valid product names returned after 5 attempts and bedrock fallback",
-      });
-    }
-
-    res.json({ products });
-  } catch (err) {
-    console.error("Bedrock API error:", err);
-    res
-      .status(500)
-      .json({ error: "Bedrock request failed", details: err.message });
-  }
-});
-
-// Bedrock Match Agent route: rank given products by suitability for the user's request
-app.post("/api/bedrock/matchAgent", async (req, res) => {
-  const { userMessage, products } = req.body;
-
-  if (!userMessage) {
-    return res.status(400).json({ error: "Missing 'userMessage' in request body" });
-  }
-  if (!Array.isArray(products) || products.length === 0) {
-    return res.status(400).json({ error: "Missing or empty 'products' array in request body" });
-  }
-
-  try {
     const messages = [
       {
         role: "user",
-        content: [{
-          text:
-            `User request:\n${userMessage}\n\n` +
-            `Products to rank (one per line):\n${products.join("\n")}`
-        }]
+        content: [{ text: modelInput }]
       },
       {
         role: "assistant",
         content: [{
           text:
-            "You are Match Agent of project ZooGent. " +
-            "Rank the provided products from most suitable (1) to least suitable (N) " +
-            "based solely on how well they fit the user's request. " +
-            "Return ONLY a JSON object like this:\n" +
-            "{\"products\": [\"Product1\", \"Product2\", ...]}\n" +
-            "No explanation, no extra text."
+            "You are a Smart Search Query Generator. Your goal is to create a set of 3-5 strategic Google search queries to find the best products based on a user's request. You will be given the user's original request and the core product topic. Your queries should target different angles like price, quality, and key features mentioned. For example, if the user request is 'I need a cheap but high quality phone with a good camera' and the topic is 'budget high quality phone', you should generate queries like: [\"best budget camera phone 2024\", \"top rated affordable smartphones Malaysia\", \"phone under RM1000 with best camera\"]\n" +
+            "Return ONLY a JSON object with a key 'queries' containing an array of the generated query strings. Do not add explanations."
         }]
       }
     ];
@@ -382,95 +238,25 @@ app.post("/api/bedrock/matchAgent", async (req, res) => {
     const command = new ConverseCommand({ modelId, messages });
     const response = await client.send(command);
 
-    // Get the model text output
-    const outputText =
-      response.output?.message?.content?.[0]?.text ??
-      response.output?.content?.[0]?.text ??
-      "";
-
-    // ✅ Safer parse: extract first {...} JSON block
+    const outputText = response.output?.message?.content?.[0]?.text ?? "";
     const match = outputText.match(/\{[\s\S]*\}/);
     if (!match) {
-      throw new Error("No JSON object found in model output");
+      // Fallback to just using the product topic if JSON parsing fails
+      return res.json({ queries: [productTopic] });
     }
 
-    const ranked = JSON.parse(match[0]);
-    res.json(ranked);
+    const parsed = JSON.parse(match[0]);
+    if (!parsed.queries || parsed.queries.length === 0) {
+      return res.json({ queries: [productTopic] });
+    }
+
+    res.json(parsed);
 
   } catch (err) {
-    console.error("Bedrock API error:", err);
-    res.status(500).json({
-      error: "Bedrock request failed",
-      details: err.message
-    });
+    console.error("Bedrock API error in smartQueryAgent:", err);
+    res.status(500).json({ queries: [productTopic], error: "Smart query generation failed", details: err.message });
   }
 });
-
-//  Bedrock Product Advertising Agent
-app.post("/api/bedrock/productAdvertisingAgent", async (req, res) => {
-  const { userMessage, product } = req.body;
-
-  // ---- Basic validation ----
-  if (!userMessage) {
-    return res.status(400).json({ error: "Missing 'userMessage' in request body" });
-  }
-  if (!product || typeof product !== "object") {
-    return res.status(400).json({ error: "Missing or invalid 'product' in request body" });
-  }
-
-  try {
-    // Safely stringify the whole product object so no raw braces/quotes break the prompt
-    const productDetails = JSON.stringify(product, null, 2);
-
-    const messages = [
-      {
-        role: "user",
-        content: [{
-          text:
-            `User request:\n${userMessage}\n\n` +
-            `Product details (JSON):\n${productDetails}`
-        }]
-      },
-      {
-        role: "assistant",
-        content: [{
-          text:
-            "You are the JustificationAgent. Given the user's request and a specific recommended product, write a concise justification (1-2 sentences) explaining why this product is a good fit. " +
-            "Highlight how its features align with the user's stated needs (budget, quality, etc.). " +
-            "This will serve as a concluding summary for the user about this recommendation. " +
-            "Return ONLY a JSON object exactly like this:\n" +
-            "{ \"introduction\": \"Your justification here.\" }\n" +
-            "No extra text, no explanation."
-        }]
-      }
-    ];
-
-    const modelId = "apac.amazon.nova-pro-v1:0";
-    const command = new ConverseCommand({ modelId, messages });
-    const response = await client.send(command);
-
-    // ---- Extract model output ----
-    const outputText =
-      response.output?.message?.content?.[0]?.text ??
-      response.output?.content?.[0]?.text ??
-      "";
-
-    // ---- Safely grab the first JSON block ----
-    const match = outputText.match(/\{[\s\S]*\}/);
-    if (!match) throw new Error("No JSON object found in model output");
-
-    const intro = JSON.parse(match[0]);
-    res.json(intro);
-
-  } catch (err) {
-    console.error("Bedrock API error:", err);
-    res.status(500).json({
-      error: "Bedrock request failed",
-      details: err.message
-    });
-  }
-});
-
 
 // Bedrock Final Summary Agent
 app.post("/api/bedrock/finalSummaryAgent", async (req, res) => {
