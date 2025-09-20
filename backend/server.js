@@ -14,15 +14,20 @@ dotenv.config();
 
 // Allowed domains to filter results for marketplace
 const MARKETPLACE_ALLOWED_DOMAINS = [
-  "amazon.com",
   "shopee.com.my",
   "lazada.com.my",
+  "tiktok.com",
+  "temu.com",
+  "amazon.com"
 ];
 const DISCUSSION_ALLOWED_DOMAINS = [
   "reddit.com/r/malaysia",
   "facebook.com",
   "quora.com",
   "forum.lowyat.net",
+  "instagram.com",
+  "tiktok.com",
+  "reddit.com"
 ];
 const RESULTS_PER_DOMAIN = 1;
 
