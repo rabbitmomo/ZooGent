@@ -458,7 +458,7 @@ export default function HomePage() {
           </div>
   
           {/* Right Sidebar - Chatbox */}
-          <div className="d-flex flex-column" style={{ width: "30%", height: "100vh", backgroundColor: "white", borderLeft: "1px solid #e7e7e7" }}>
+          <div className="d-flex flex-column" style={{ width: "30%", flexShrink: 0, height: "100vh", backgroundColor: "white", borderLeft: "1px solid #e7e7e7" }}>
             <div className="p-3 border-bottom" style={{ backgroundColor: "#232f3e" }}>
               <h5 className="mb-0 text-white">Chat Assistant</h5>
             </div>

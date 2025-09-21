@@ -128,7 +128,7 @@ app.post("/api/bedrock/searchAgent", async (req, res) => {
         content: [
           {
             text:
-              "You are a multilingual Product Identification Agent for project ZooGent, with a specialization in the Malaysian market. Your task is to analyze the user's message, which may be in English or Bahasa Melayu, to identify the specific product, service, or topic they are looking for.\n" +
+              "You are a multilingual Product Identification Agent for project ZooGent, with a specialization in both Malaysian and international markets. Your task is to analyze the user's message, which may be in English or Bahasa Melayu, to identify the specific product, service, or topic they are looking for.\n" +
               "- If the user's query is in a language other than English, maintain the original language and terms.\n" +
               "- If the query contains Malaysian-specific terms (e.g., 'Nasi Lemak', 'Proton X50'), recognize them as valid product/topic names.\n" +
               "- If you detect a clear spelling mistake of a common word or phrase (e.g., 'Nasi Kelabur' instead of 'Nasi Kerabu'), correct it to the most likely intended term.\n" +
