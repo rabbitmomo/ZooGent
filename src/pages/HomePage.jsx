@@ -36,6 +36,32 @@ const Modal = ({ setShowModal }) => (
   </div>
 );
 
+const BotAvatar = () => (
+    <img
+      src="/favicon.png"
+      alt="AI"
+      className="rounded-circle me-2"
+      style={{
+        width: 32,
+        height: 32,
+        objectFit: 'cover'
+      }}
+    />
+);
+
+const ThinkingBubble = () => (
+    <div className="d-flex mb-3 justify-content-start">
+        <BotAvatar />
+        <div className="p-3 rounded" style={{ background: 'white', border: '1px solid #e7e7e7', display: 'flex', alignItems: 'center' }}>
+            <div className="thinking-dots">
+                <div></div>
+                <div></div>
+                <div></div>
+            </div>
+        </div>
+    </div>
+);
+
 export default function HomePage() {
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState([]);
@@ -54,9 +80,9 @@ export default function HomePage() {
         body: JSON.stringify({ userMessage }),
       });
       const data = await res.json();
-      const rewritten = 
-        data?.result?.output?.message?.content?.[0]?.text || 
-        data?.result?.introduction || 
+      const rewritten =
+        data?.result?.output?.message?.content?.[0]?.text ||
+        data?.result?.introduction ||
         userMessage;
       return rewritten.trim();
     } catch (err) {
@@ -100,8 +126,8 @@ export default function HomePage() {
       });
       const data = await res.json();
       return (
-        data?.result?.output?.message?.content?.[0]?.text || 
-        data?.result?.introduction || 
+        data?.result?.output?.message?.content?.[0]?.text ||
+        data?.result?.introduction ||
         "No summary available."
       ).trim();
     } catch (err) {
@@ -328,6 +354,26 @@ export default function HomePage() {
             transform: translateY(-2px);
             box-shadow: 0 5px 10px rgba(0,0,0,0.15);
           }
+          @keyframes blink {
+              0% { opacity: .2; }
+              20% { opacity: 1; }
+              100% { opacity: .2; }
+          }
+          .thinking-dots div {
+              width: 8px;
+              height: 8px;
+              margin: 0 3px;
+              background: #6c757d;
+              border-radius: 50%;
+              display: inline-block;
+              animation: blink 1.4s infinite both;
+          }
+          .thinking-dots div:nth-child(2) {
+              animation-delay: .2s;
+          }
+          .thinking-dots div:nth-child(3) {
+              animation-delay: .4s;
+          }
         `}</style>
         <div className="d-flex" style={{ height: "100vh", overflow: "hidden", backgroundColor: "#f8f9fa" }}>
           {/* Main Content Area */}
@@ -475,21 +521,7 @@ export default function HomePage() {
                   key={idx}
                   className={`d-flex mb-3 ${m.role === "user" ? "justify-content-end" : "justify-content-start"}`}
                 >
-                  {m.role === "bot" && (
-                    <div
-                      className="rounded-circle d-flex align-items-center justify-content-center me-2"
-                      style={{
-                        width: 32,
-                        height: 32,
-                        background: "#ff9900",
-                        color: "white",
-                        fontWeight: "bold",
-                        fontSize: "12px"
-                      }}
-                    >
-                      AI
-                    </div>
-                  )}
+                  {m.role === "bot" && <BotAvatar />}
   
                   <div
                     className={`p-2 rounded`}
@@ -522,6 +554,7 @@ export default function HomePage() {
                   )}
                 </div>
               ))}
+              {loading && <ThinkingBubble />}
             </div>
   
             <div className="p-3 border-top">
