@@ -48,7 +48,11 @@ async function filterRelevantItems(query, items, userType) {
   }
 
   try {
-    const modelInput = `Search Query: "${query}"\nUser Type: "${userType}"\n\nItems to filter (JSON):\n${JSON.stringify(
+    const modelInput = `Search Query: "${query}"
+User Type: "${userType}"
+
+Items to filter (JSON):
+${JSON.stringify(
       items.map((item) => ({ title: item.title, snippet: item.snippet })),
       null,
       2
@@ -129,7 +133,7 @@ app.post("/api/bedrock/intentRouterAgent", async (req, res) => {
 
     if (match) {
       const parsed = JSON.parse(match[0]);
-      const userType = parsed.userType === 'B2B' ? 'B2B' : 'C2C';
+      const userType = parsed.userType === 'B2B' ? 'B2B' : 'B2C';
       res.json({ userType });
     } else {
       res.json({ userType: 'B2C' });
@@ -229,7 +233,10 @@ app.post("/api/bedrock/masterAnalysisAgent", async (req, res) => {
   }
 
   try {
-    const modelInput = `User's original request: "${userMessage}"\nUser Type: "${userType}"\n\nRaw Search Results (JSON):
+    const modelInput = `User's original request: "${userMessage}"
+User Type: "${userType}"
+
+Raw Search Results (JSON):
 ${JSON.stringify(searchResults, null, 2)}`;
 
     const messages = [
@@ -272,8 +279,6 @@ Your entire output must be a single, valid JSON object and nothing else.`
   }
 });
 
-
-// Custom Forum Search API route (No longer needed, summary agent will do this)
 
 // Custom Marketplace Website Search API route
 app.post("/api/search/marketplace", async (req, res) => {

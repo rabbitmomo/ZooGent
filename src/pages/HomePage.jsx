@@ -80,18 +80,34 @@ export default function HomePage() {
     }
   };
 
-  const callMasterAnalysisAgent = async (userMessage, userType, searchResults) => {
+  const callRankingAgent = async (userMessage, products, userType) => {
     try {
-      const res = await fetch(`${BASE_URL}/api/bedrock/masterAnalysisAgent`, {
+      if (!products || products.length === 0) return [];
+      const res = await fetch(`${BASE_URL}/api/bedrock/rankingAgent`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userMessage, userType, searchResults }),
+        body: JSON.stringify({ userMessage, products, userType }),
       });
       const data = await res.json();
-      return data;
+      return data.products || products;
     } catch (err) {
-      console.error("MasterAnalysisAgent API error:", err);
-      return null;
+      console.error("RankingAgent API error:", err);
+      return products;
+    }
+  };
+
+  const callConclusionAgent = async (userMessage, products, userType) => {
+    try {
+      const res = await fetch(`${BASE_URL}/api/bedrock/conclusionAgent`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userMessage, products, userType }),
+      });
+      const data = await res.json();
+      return data.summary || "Here are your personalized product recommendations:";
+    } catch (err) {
+      console.error("ConclusionAgent API error:", err);
+      return "Here are your personalized product recommendations:";
     }
   };
 
@@ -108,45 +124,54 @@ export default function HomePage() {
     setCurrentStep(0);
 
     try {
-      const contextualUserMessage = newUserMessage;
+      const contextualUserMessage = newUserMessage; // Simplified context for now
 
+      // Step 1: Classify Intent
       setCurrentStep(1);
       const userType = await callIntentRouterAgent(contextualUserMessage);
 
+      // Step 2: Rewrite user message for search
       setCurrentStep(2);
       const rewrittenQuery = await callSearchAgent(contextualUserMessage, userType);
 
+      // Step 3: Perform Forum Summary and Marketplace Search in Parallel
       setCurrentStep(3);
       const [forumSummary, marketplaceCandidates] = await Promise.all([
         callSummarizeAgent(rewrittenQuery, userType),
         callMarketplaceSearch(rewrittenQuery, userType)
       ]);
 
+      // Step 4: Filter and Rank all candidates
       setCurrentStep(4);
-      const analysisResult = await callMasterAnalysisAgent(contextualUserMessage, userType, marketplaceCandidates);
+      const rankedProducts = await callRankingAgent(contextualUserMessage, marketplaceCandidates, userType);
 
-      if (!analysisResult || !analysisResult.ranked_products) {
-        throw new Error("Analysis failed to return valid products.");
+      if (!rankedProducts || rankedProducts.length === 0) {
+        throw new Error("Could not find any relevant products after ranking.");
       }
 
+      // Step 5: Generate Final Conclusion
       setCurrentStep(5);
+      const finalConclusion = await callConclusionAgent(contextualUserMessage, rankedProducts.slice(0, 20), userType);
+
+      // Step 6: Complete
+      setCurrentStep(6);
 
       setMessages((prev) => [
         ...prev,
         {
           role: "bot",
-          text: analysisResult.summary || "Here are the results based on my analysis.",
+          text: finalConclusion,
           results: {
             searchQuery: rewrittenQuery,
             forumSummary: forumSummary,
-            marketplaceResults: analysisResult.ranked_products,
+            marketplaceResults: rankedProducts.slice(0, 20),
           },
         },
       ]);
     } catch (err) {
       setMessages((prev) => [
         ...prev,
-        { role: "bot", text: "I encountered an error while processing your request. Please try again." },
+        { role: "bot", text: `I encountered an error: ${err.message}. Please try again.` },
       ]);
     } finally {
       setLoading(false);
@@ -158,8 +183,9 @@ export default function HomePage() {
     { id: 1, name: "Intent", description: "Analyzing user type" },
     { id: 2, name: "Rewrite", description: "Refining your query" },
     { id: 3, name: "Research", description: "Searching forums & stores" },
-    { id: 4, name: "Analysis", description: "Filtering & ranking results" },
-    { id: 5, name: "Complete", description: "Results ready!" }
+    { id: 4, name: "Rank", description: "Ranking all results" },
+    { id: 5, name: "Conclusion", description: "Writing summary" },
+    { id: 6, name: "Complete", description: "Results ready!" }
   ];
 
   const Modal = () => (
@@ -221,14 +247,16 @@ export default function HomePage() {
       }}>
         {/* Main Content Area */}
         <div className="p-4" style={{ overflowY: "auto", backgroundColor: "#f8f9fa" }}>
-          <div className="d-flex align-items-start mb-4">
+          <div className="d-flex justify-content-between align-items-start mb-4">
             <div>
-              <img src="/logo.png" alt="ZooGent Logo" style={{ height: '90px', width: '110px' }} />
+              <h1 className="h2 mb-1" style={{ color: "#232f3e", fontWeight: "600" }}>
+                ZooGent Product Assistant
+              </h1>
               <p className="text-muted">
                 Get personalized product recommendations powered by AI and community insights
               </p>
             </div>
-            <button onClick={() => setShowModal(true)} className="btn who-are-we-btn" style={{ marginLeft: '2rem', backgroundColor: 'orange', color: '#232f3e', border: '2px solid #e7e7e7', flexShrink: 0 }}>
+            <button onClick={() => setShowModal(true)} className="btn who-are-we-btn" style={{ marginLeft: '2rem', backgroundColor: 'white', color: '#232f3e', border: '1px solid #e7e7e7', flexShrink: 0 }}>
               Who are we
             </button>
           </div>
@@ -239,7 +267,7 @@ export default function HomePage() {
               <h5 className="card-title mb-3" style={{ color: "#232f3e" }}>AI Processing Pipeline</h5>
               <div className="d-flex flex-wrap justify-content-between">
                 {pipelineSteps.map((step) => (
-                  <div key={step.id} className="text-center mb-3" style={{ width: "18%" }}>
+                  <div key={step.id} className="text-center mb-3" style={{ width: "16%" }}>
                     <div
                       className="rounded-circle d-flex align-items-center justify-content-center mx-auto mb-2"
                       style={{
