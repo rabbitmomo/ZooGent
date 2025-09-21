@@ -66,7 +66,7 @@ async function filterRelevantItems(query, items) {
       },
     ];
 
-    const modelId = "apac.amazon.nova-micro-v1:0";
+    const modelId = "apac.amazon.nova-pro-v1:0";
     const command = new ConverseCommand({ modelId, messages });
     const response = await client.send(command);
 
@@ -506,7 +506,7 @@ app.post("/api/bedrock/finalSummaryAgent", async (req, res) => {
       }
     ];
 
-    const modelId = "apac.amazon.nova-micro-v1:0";
+    const modelId = "apac.amazon.nova-pro-v1:0";
     const command = new ConverseCommand({ modelId, messages });
     const response = await client.send(command);
 
