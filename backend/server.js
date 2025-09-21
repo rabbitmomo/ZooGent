@@ -30,8 +30,8 @@ const B2B_MARKETPLACE_DOMAINS = [
 ];
 
 const DISCUSSION_ALLOWED_DOMAINS = [
-  "reddit.com/r/malaysia",
-  "facebook.com",
+  "reddit.com",
+  "forum.lowyat.net",
   "quora.com",
 ];
 const RESULTS_PER_DOMAIN = 10;
@@ -48,11 +48,7 @@ async function filterRelevantItems(query, items, userType) {
   }
 
   try {
-    const modelInput = `Search Query: "${query}"
-User Type: "${userType}"
-
-Items to filter (JSON):
-${JSON.stringify(
+    const modelInput = `Search Query: "${query}"\nUser Type: "${userType}"\n\nItems to filter (JSON):\n${JSON.stringify(
       items.map((item) => ({ title: item.title, snippet: item.snippet })),
       null,
       2
@@ -133,7 +129,7 @@ app.post("/api/bedrock/intentRouterAgent", async (req, res) => {
 
     if (match) {
       const parsed = JSON.parse(match[0]);
-      const userType = parsed.userType === 'B2B' ? 'B2B' : 'B2C';
+      const userType = parsed.userType === 'B2B' ? 'B2B' : 'C2C';
       res.json({ userType });
     } else {
       res.json({ userType: 'B2C' });
@@ -186,36 +182,32 @@ app.post("/api/bedrock/searchAgent", async (req, res) => {
 
 // Bedrock Summarize Agent route
 app.post("/api/bedrock/summarizeAgent", async (req, res) => {
-  let { forumMessage, userType } = req.body;
+  const { rewrittenQuery, userType } = req.body;
 
-  if (!forumMessage) {
+  if (!rewrittenQuery) {
     return res
       .status(400)
-      .json({ error: "Missing 'forumMessage' in request body" });
-  }
-
-  if (Array.isArray(forumMessage)) {
-    forumMessage = JSON.stringify(forumMessage, null, 2);
+      .json({ error: "Missing 'rewrittenQuery' in request body" });
   }
 
   try {
     const messages = [
       {
         role: "user",
-        content: [{ text: forumMessage }],
+        content: [{ text: `Please find information about "${rewrittenQuery}" on discussion forums and then provide a one-paragraph summary of the findings.` }],
       },
       {
         role: "assistant",
         content: [
           {
             text:
-              `You are SummarizeAgent. You are summarizing discussions for a '${userType === 'B2B' ? 'Business User' : 'General Consumer'}'. Your task is to read the provided forum search results and produce a single, well-structured paragraph summarizing the key points. Highlight the main features, advantages, disadvantages, and overall sentiment. Limit your summary to 100 words and base it only on the information given.`,
+              `You are SummarizeAgent. You have the ability to search the web. You are summarizing discussions for a '${userType === 'B2B' ? 'Business User' : 'General Consumer'}'. First, perform a web search for the user's query on sites like Reddit, Quora, and other forums. Then, based on the search results, produce a single, well-structured paragraph summarizing the key points. Highlight the main features, advantages, disadvantages, and overall sentiment. Limit your summary to 100 words.`,
           },
         ],
       },
     ];
 
-    const modelId = "apac.amazon.nova-pro-v1:0";
+    const modelId = "apac.amazon.nova-pro-v1:0"; // A model that can search
     const command = new ConverseCommand({ modelId, messages });
     const response = await client.send(command);
 
@@ -228,17 +220,17 @@ app.post("/api/bedrock/summarizeAgent", async (req, res) => {
   }
 });
 
-// Bedrock Smart Query Agent
-app.post("/api/bedrock/smartQueryAgent", async (req, res) => {
-  const { userRequest, productTopic, userType } = req.body;
+// Bedrock Master Analysis Agent
+app.post("/api/bedrock/masterAnalysisAgent", async (req, res) => {
+  const { userMessage, userType, searchResults } = req.body;
 
-  if (!userRequest || !productTopic) {
-    return res.status(400).json({ error: "Missing 'userRequest' or 'productTopic' in request body" });
+  if (!userMessage || !userType || !searchResults) {
+    return res.status(400).json({ error: "Missing required fields in request body" });
   }
 
   try {
-    const modelInput = `User's original request: "${userRequest}"
-Core product topic: "${productTopic}"`;
+    const modelInput = `User's original request: "${userMessage}"\nUser Type: "${userType}"\n\nRaw Search Results (JSON):
+${JSON.stringify(searchResults, null, 2)}`;
 
     const messages = [
       {
@@ -249,7 +241,13 @@ Core product topic: "${productTopic}"`;
         role: "assistant",
         content: [{
           text:
-            `You are a Smart Search Query Generator. You are generating queries for a '${userType === 'B2B' ? 'Business User looking for suppliers' : 'General Consumer'}'. For Business Users, focus on terms like 'manufacturer', 'wholesale', 'factory', 'MOQ'. For Consumers, focus on 'best', 'review', 'price', 'vs'. Your goal is to create a set of 3-5 strategic Google search queries. Return ONLY a JSON object with a key 'queries' containing an array of the generated query strings.`
+            `You are a Master Analysis AI. You will be given a user's request, their user type (B2C or B2B), and a list of raw search results. Your task is to perform a complete analysis and return a single JSON object with two keys: "ranked_products" and "summary".
+
+For 'ranked_products': Analyze the user's request for all criteria (price, quality, features, etc.). Scrutinize the provided search results. Filter out any irrelevant items. From the relevant items, select the top 20 that best match the user's request and rank them from most to least suitable. The value for 'ranked_products' must be a JSON array of the original product objects in their new ranked order.
+
+For 'summary': Based on your analysis, write a brief, friendly, and conclusive summary for the user, mentioning the product you searched for and confirming you found some promising options. The value for 'summary' must be a single string.
+
+Your entire output must be a single, valid JSON object and nothing else.`
         }]
       }
     ];
@@ -260,172 +258,22 @@ Core product topic: "${productTopic}"`;
 
     const outputText = response.output?.message?.content?.[0]?.text ?? "";
     const match = outputText.match(/\{[\s\S]*\}/);
-    if (!match) {
-      return res.json({ queries: [productTopic] });
-    }
 
-    const parsed = JSON.parse(match[0]);
-    if (!parsed.queries || parsed.queries.length === 0) {
-      return res.json({ queries: [productTopic] });
+    if (match) {
+      const parsed = JSON.parse(match[0]);
+      res.json(parsed);
+    } else {
+      res.status(500).json({ error: "Failed to parse Master Analysis Agent response" });
     }
-
-    res.json(parsed);
 
   } catch (err) {
-    console.error("Bedrock API error in smartQueryAgent:", err);
-    res.status(500).json({ queries: [productTopic], error: "Smart query generation failed", details: err.message });
-  }
-});
-
-// Bedrock Match Agent route: rank given products by suitability for the user's request
-app.post("/api/bedrock/matchAgent", async (req, res) => {
-  const { userMessage, products, userType } = req.body;
-
-  if (!userMessage) {
-    return res.status(400).json({ error: "Missing 'userMessage' in request body" });
-  }
-  if (!Array.isArray(products) || products.length === 0) {
-    return res.status(400).json({ error: "Missing or empty 'products' array in request body" });
-  }
-
-  try {
-    const modelInput = `User's original request: "${userMessage}"
-
-Product candidates (JSON):
-${JSON.stringify(products, null, 2)}`;
-
-    const messages = [
-      {
-        role: "user",
-        content: [{ text: modelInput }]
-      },
-      {
-        role: "assistant",
-        content: [{
-          text:
-            `You are an expert Product Matching and Ranking Agent. You are ranking results for a '${userType === 'B2B' ? 'Business User' : 'General Consumer'}'. For Business Users, prioritize supplier verification, bulk pricing indicators, and manufacturing capabilities. For Consumers, prioritize user reviews, value for money, and popular features. Your critical task is to analyze a list of product candidates and rank them based on how well they fit the user's original request. Return ONLY a JSON object with a 'products' key containing an array of the FULL original product objects, sorted from most to least relevant. Do not alter the objects. Do not add explanations.`
-        }]
-      }
-    ];
-
-    const modelId = "apac.amazon.nova-pro-v1:0";
-    const command = new ConverseCommand({ modelId, messages });
-    const response = await client.send(command);
-
-    const outputText = response.output?.message?.content?.[0]?.text ?? "";
-    const match = outputText.match(/\{[\s\S]*\}/);
-    if (!match) {
-      return res.json({ products: products });
-    }
-
-    const ranked = JSON.parse(match[0]);
-    if (!ranked.products) {
-      return res.json({ products: products });
-    }
-
-    res.json(ranked);
-
-  } catch (err) {
-    console.error("Bedrock API error in matchAgent:", err);
-    res.status(500).json({ products: products, error: "Ranking failed", details: err.message });
-  }
-});
-
-// Bedrock Final Summary Agent
-app.post("/api/bedrock/finalSummaryAgent", async (req, res) => {
-  const { userRequest, products, userType } = req.body;
-
-  if (!userRequest) {
-    return res.status(400).json({ error: "Missing 'userRequest' in request body" });
-  }
-  if (!Array.isArray(products)) {
-    return res.status(400).json({ error: "Missing or invalid 'products' array in request body" });
-  }
-
-  try {
-    const productTitles = products.map(p => p.title || p).join(', ');
-
-    const modelInput = `User's request: "${userRequest}"
-
-Top products found: [${productTitles}]`;
-
-    const messages = [
-      {
-        role: "user",
-        content: [{ text: modelInput }]
-      },
-      {
-        role: "assistant",
-        content: [{
-          text:
-            `You are the Final Summary Agent. Your audience is a '${userType === 'B2B' ? 'Business User' : 'General Consumer'}'. Tailor your language appropriately. Your task is to write a very brief, friendly, and conclusive message for the chat window. Mention the product category you searched for and confirm that you've found some promising options. The message should be a single, short paragraph. Output ONLY the summary text, with no extra formatting or JSON.`
-        }]
-      }
-    ];
-
-    const modelId = "apac.amazon.nova-micro-v1:0";
-    const command = new ConverseCommand({ modelId, messages });
-    const response = await client.send(command);
-
-    const summary = response.output?.message?.content?.[0]?.text ?? "Here are your personalized product recommendations:";
-
-    res.json({ summary: summary.trim() });
-
-  } catch (err) {
-    console.error("Bedrock API error in finalSummaryAgent:", err);
-    res.status(500).json({ summary: "Here are your personalized product recommendations:", error: "Summary generation failed", details: err.message });
+    console.error("Bedrock API error in masterAnalysisAgent:", err);
+    res.status(500).json({ error: "Master analysis failed", details: err.message });
   }
 });
 
 
-// Custom Forum Search API route
-app.post("/api/search/forum", async (req, res) => {
-  const { query, userType } = req.body;
-
-  if (!query) {
-    return res.status(400).json({ error: "Missing 'query' in request body" });
-  }
-
-  try {
-    const allResults = [];
-
-    for (const domain of DISCUSSION_ALLOWED_DOMAINS) {
-      const domainQuery = `${query} site:${domain}`;
-      const response = await axios.get(
-        "https://www.googleapis.com/customsearch/v1",
-        {
-          params: {
-            key: process.env.VITE_GOOGLE_API_KEY,
-            cx: process.env.VITE_GOOGLE_CX,
-            q: domainQuery,
-            num: RESULTS_PER_DOMAIN,
-          },
-        }
-      );
-
-      const items = response.data.items || [];
-      const mapped = items.map((item) => ({
-        title: item.title,
-        link: item.link,
-        snippet: item.snippet,
-        image: item.pagemap?.cse_image?.[0]?.src || null,
-        domain,
-      }));
-
-      allResults.push(...mapped);
-    }
-
-    const filteredResults = await filterRelevantItems(query, allResults, userType);
-
-    res.json({ results: filteredResults.slice(0, 4) });
-  } catch (error) {
-    console.error("Custom Search API error:", error.message);
-    res.status(500).json({
-      error: "Custom Search API request failed",
-      details: error.message,
-    });
-  }
-});
+// Custom Forum Search API route (No longer needed, summary agent will do this)
 
 // Custom Marketplace Website Search API route
 app.post("/api/search/marketplace", async (req, res) => {
@@ -466,10 +314,8 @@ app.post("/api/search/marketplace", async (req, res) => {
       allResults.push(...mapped);
     }
 
-    const filteredResults = await filterRelevantItems(query, allResults, userType);
-
-    console.log("Combined and filtered marketplace results:", filteredResults);
-    res.json({ results: filteredResults });
+    // No AI filtering here, pass raw results to the master agent
+    res.json({ results: allResults });
   } catch (error) {
     console.error("Custom Search API error:", error.message);
     res.status(500).json({
