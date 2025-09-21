@@ -60,6 +60,7 @@ pnpm install
 node server.js
 ```
 The backend server will start on `http://localhost:5000`. The frontend is configured to proxy requests to this endpoint.
+Change the BASE_URL from the pages/HomePage.jsx to the `http://localhost:5000` and now you could made the RESTFUL API request locally.
 
 ## Core Features
 
