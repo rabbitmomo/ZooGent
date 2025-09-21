@@ -1,10 +1,47 @@
 import React, { useState } from "react";
 
+const Modal = ({ setShowModal }) => (
+  <div style={{
+    position: 'fixed',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 1050,
+    padding: '1rem'
+  }}>
+    <div style={{
+      backgroundColor: 'white',
+      padding: '2rem',
+      borderRadius: '8px',
+      maxWidth: '600px',
+      width: '100%',
+      boxShadow: '0 5px 15px rgba(0,0,0,0.3)',
+      lineHeight: '1.6'
+    }}>
+      <h4 style={{ color: '#232f3e' }}>Ever wanted to buy a product but you weren't sure if it was the best?</h4>
+      <p className="text-muted" style={{ marginTop: '1rem' }}>...or the most affordable? Maybe you don't even know the name? You only know what it does and what it looks like. We have all been there. It took me so long to find the product I wanted.</p>
+      <p style={{ marginTop: '1rem' }}>With ZooGent you will never have to second guess whether you have the best product that's just right for you or spend time searching for the right keywords. It understands you like a fellow human. Describe your product and it will know the exact thing you actually mean.</p>
+      <p style={{ marginTop: '1rem' }}>Want it cheap? ZooGent will get it for you. Want long lasting quality? ZooGent will find it. What if you are a business looking for a fair and reliable supplier? Zoo Gent's got you.</p>
+      <p style={{ marginTop: '1rem', fontWeight: 'bold', color: '#232f3e' }}>Meet ZooGent: A pool of generative AI agents that will help you find the right fit.</p>
+      <hr />
+      <p style={{ fontSize: '0.9rem', color: '#666' }}>We are team Zoo Negara, Problem statement: Website search assistant with AI for instant results for shoppers and we hope you enjoy!</p>
+      <p style={{ fontSize: '0.8rem', color: '#666' }}>Team members: Trevor Lim Yong Guan, Kok Ngin Hao, Ling Yu Qian and Yan Yu</p>
+      <button onClick={() => setShowModal(false)} className="btn" style={{ backgroundColor: '#ff9900', color: 'white', marginTop: '1.5rem' }}>Back</button>
+    </div>
+  </div>
+);
+
 export default function HomePage() {
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
+  const [showModal, setShowModal] = useState(false);
 
   const BASE_URL = "https://dacp3uiyfj.ap-southeast-1.awsapprunner.com";
 
@@ -17,9 +54,9 @@ export default function HomePage() {
         body: JSON.stringify({ userMessage }),
       });
       const data = await res.json();
-      const rewritten =
-        data?.result?.output?.message?.content?.[0]?.text ||
-        data?.result?.introduction ||
+      const rewritten = 
+        data?.result?.output?.message?.content?.[0]?.text || 
+        data?.result?.introduction || 
         userMessage;
       return rewritten.trim();
     } catch (err) {
@@ -63,8 +100,8 @@ export default function HomePage() {
       });
       const data = await res.json();
       return (
-        data?.result?.output?.message?.content?.[0]?.text ||
-        data?.result?.introduction ||
+        data?.result?.output?.message?.content?.[0]?.text || 
+        data?.result?.introduction || 
         "No summary available."
       ).trim();
     } catch (err) {
@@ -272,6 +309,7 @@ export default function HomePage() {
 
     return (
       <>
+        {showModal && <Modal setShowModal={setShowModal} />}
         <style>{`
           .clickable-card {
             text-decoration: none;
@@ -283,15 +321,27 @@ export default function HomePage() {
             transform: translateY(-5px);
             box-shadow: 0 10px 20px rgba(0,0,0,0.15);
           }
+          .who-we-are-btn {
+            transition: all 0.3s ease;
+          }
+          .who-we-are-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 10px rgba(0,0,0,0.15);
+          }
         `}</style>
         <div className="d-flex" style={{ height: "100vh", overflow: "hidden", backgroundColor: "#f8f9fa" }}>
           {/* Main Content Area */}
           <div className="flex-grow-1 p-4" style={{ overflowY: "auto" }}>
             <div className="mb-4">
-              <h1 className="h2 mb-3" style={{ color: "#232f3e", fontWeight: "600" }}>
-                ZooGent Product Assistant
-              </h1>
-              <p className="text-muted">
+              <div className="d-flex justify-content-between align-items-center">
+                <h1 className="h2" style={{ color: "#232f3e", fontWeight: "600" }}>
+                  ZooGent Product Assistant
+                </h1>
+                <button onClick={() => setShowModal(true)} className="btn who-we-are-btn" style={{ backgroundColor: '#ff9900', color: 'white' }}>
+                  Who We Are
+                </button>
+              </div>
+              <p className="text-muted mt-2">
                 Get personalized product recommendations powered by AI and community insights
               </p>
             </div>
@@ -507,4 +557,5 @@ export default function HomePage() {
           </div>
         </div>
       </>
-    );}
+    );
+}
