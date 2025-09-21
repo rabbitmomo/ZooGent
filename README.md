@@ -27,7 +27,7 @@ VITE_GOOGLE_CX="YOUR_GOOGLE_SEARCH_ENGINE_ID"
 # Ensure your environment is configured with AWS credentials
 # e.g., via ~/.aws/credentials or by setting the following:
 AWS_BEARER_TOKEN_BEDROCK="YOUR_AWS_BEARER_TOKEN_BEDROCK"
-and the
+
 ```
 
 ### 2. Running the Application
