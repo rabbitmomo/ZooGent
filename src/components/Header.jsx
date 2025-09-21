@@ -22,7 +22,7 @@ export default function Header() {
               `nav-link-custom ${isActive ? 'active' : ''}`
             }
           >
-            <i className="fas fa-home me-2"></i>
+            <i className="fas fa-home"></i>
             Home
           </NavLink>
           <NavLink
@@ -31,7 +31,7 @@ export default function Header() {
               `nav-link-custom ${isActive ? 'active' : ''}`
             }
           >
-            <i className="fas fa-tachometer-alt me-2"></i>
+            <i className="fas fa-tachometer-alt"></i>
             Dashboard
           </NavLink>
         </div>
