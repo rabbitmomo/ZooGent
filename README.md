@@ -26,9 +26,8 @@ VITE_GOOGLE_CX="YOUR_GOOGLE_SEARCH_ENGINE_ID"
 # AWS Credentials for Bedrock
 # Ensure your environment is configured with AWS credentials
 # e.g., via ~/.aws/credentials or by setting the following:
-AWS_ACCESS_KEY_ID="YOUR_AWS_ACCESS_KEY"
-AWS_SECRET_ACCESS_KEY="YOUR_AWS_SECRET_KEY"
-AWS_REGION="ap-southeast-1"
+AWS_BEARER_TOKEN_BEDROCK="YOUR_AWS_BEARER_TOKEN_BEDROCK"
+and the
 ```
 
 ### 2. Running the Application
