@@ -18,7 +18,7 @@ const MARKETPLACE_ALLOWED_DOMAINS = [
   "lazada.com.my",
   "tiktok.com/shop/my",
   "temu.com",
-  "amazon.com"
+  "amazon.com",
 ];
 const DISCUSSION_ALLOWED_DOMAINS = [
   "reddit.com/r/malaysia",
@@ -27,7 +27,7 @@ const DISCUSSION_ALLOWED_DOMAINS = [
   "forum.lowyat.net",
   "instagram.com",
   "tiktok.com",
-  "reddit.com"
+  "reddit.com",
 ];
 const RESULTS_PER_DOMAIN = 10;
 
@@ -128,16 +128,25 @@ app.post("/api/bedrock/searchAgent", async (req, res) => {
         content: [
           {
             text:
-              "You are a multilingual Product Identification Agent for project ZooGent, with a specialization in both Malaysian and international markets. Your task is to analyze the user's message, which may be in English or Bahasa Melayu, to identify the specific product, service, or topic they are looking for.\n" +
-              "- If the user's query is in a language other than English, maintain the original language and terms.\n" +
-              "- If the query contains Malaysian-specific terms (e.g., 'Nasi Lemak', 'Proton X50'), recognize them as valid product/topic names.\n" +
-              "- If you detect a clear spelling mistake of a common word or phrase (e.g., 'Nasi Kelabur' instead of 'Nasi Kerabu'), correct it to the most likely intended term.\n" +
-              "- If you encounter a term you do not understand, do not guess or translate it into an unrelated English word. Instead, use the original term directly in the output.\n" +
-              "- Your output must be ONLY the identified product name, ready for the next step. For example:\n" +
-              "  - If the user says 'kereta sewa murah', output 'kereta sewa murah'.\n" +
-              "  - If the user says 'Nasi Kelabur', output 'Nasi Kerabu'.\n" +
-              "  - If the user says 'best phone under RM1000', output 'best phone under RM1000'.\n" +
-              "Provide only the product name and nothing else.",
+              'You are ZooGent\'s multilingual "Product Identification Agent". ' +
+              "Your job: read the user's description and return the single most likely product or brand name. " +
+              "Rules:\n" +
+              '1. Output ONLY one product/brand name, surrounded by double quotes, e.g. "Mamee Monster Snack".\n' +
+              "2. Infer from cultural, local, and common-brand knowledge when the user gives indirect clues + produce the best guess.\n" +
+              "3. Correct obvious spelling errors before outputting the product name.\n" +
+              "4. If the description matches a common traditional food, output the common name (not a long explanation).\n" +
+              "5. Prefer widely-known local or international names (e.g., Malaysian consumer brands or common Chinese New Year foods).\n" +
+              "6. Never output explanations, lists, or extra text — only the quoted name.\n" +
+              "Examples:\n" +
+              ' - Input: "a snack like Maggi but eaten dry by kids, brand starts with M"  -> Output: "Mamee Monster Snack"\n' +
+              ' - Input: "food Chinese people eat in new year, made by meat, dried with honey, little sweet" -> Output: "Bak Kwa"\n' +
+              ' - Input: "kereta sewa murah" -> Output: "kereta sewa murah"\n' +
+              ' - Input: "Nasi Kelabur" -> Output: "Nasi Kerabu"\n' +
+              ' - Input: "best phone under RM1000" -> Output: "best phone under RM1000"\n' +
+              ' - Input: "children\'s instant noodle snack" -> Output: "Mamee Monster Snack"\n' +
+              ' - Input: "hockey goalie shoes for turf" -> Output: "Grays Aero Cage X"\n' +
+              ' - Input: "badminton shuttlecock brand" -> Output: "Sea Lion 1101"\n' +
+              ' - Input: "table tennis shoes for men" -> Output: "Tibhar Table Tennis Shoes"\n',
           },
         ],
       },
@@ -348,34 +357,42 @@ app.post("/api/bedrock/matchAgent", async (req, res) => {
   const { userMessage, products } = req.body;
 
   if (!userMessage) {
-    return res.status(400).json({ error: "Missing 'userMessage' in request body" });
+    return res
+      .status(400)
+      .json({ error: "Missing 'userMessage' in request body" });
   }
   if (!Array.isArray(products) || products.length === 0) {
-    return res.status(400).json({ error: "Missing or empty 'products' array in request body" });
+    return res
+      .status(400)
+      .json({ error: "Missing or empty 'products' array in request body" });
   }
 
   try {
     const messages = [
       {
         role: "user",
-        content: [{
-          text:
-            `User request:\n${userMessage}\n\n` +
-            `Products to rank (one per line):\n${products.join("\n")}`
-        }]
+        content: [
+          {
+            text:
+              `User request:\n${userMessage}\n\n` +
+              `Products to rank (one per line):\n${products.join("\n")}`,
+          },
+        ],
       },
       {
         role: "assistant",
-        content: [{
-          text:
-            "You are Match Agent of project ZooGent. " +
-            "Rank the provided products from most suitable (1) to least suitable (N) " +
-            "based solely on how well they fit the user's request. " +
-            "Return ONLY a JSON object like this:\n" +
-            "{\"products\": [\"Product1\", \"Product2\", ...]}\n" +
-            "No explanation, no extra text."
-        }]
-      }
+        content: [
+          {
+            text:
+              "You are Match Agent of project ZooGent. " +
+              "Rank the provided products from most suitable (1) to least suitable (N) " +
+              "based solely on how well they fit the user's request. " +
+              "Return ONLY a JSON object like this:\n" +
+              '{"products": ["Product1", "Product2", ...]}\n' +
+              "No explanation, no extra text.",
+          },
+        ],
+      },
     ];
 
     const modelId = "apac.amazon.nova-pro-v1:0";
@@ -396,12 +413,11 @@ app.post("/api/bedrock/matchAgent", async (req, res) => {
 
     const ranked = JSON.parse(match[0]);
     res.json(ranked);
-
   } catch (err) {
     console.error("Bedrock API error:", err);
     res.status(500).json({
       error: "Bedrock request failed",
-      details: err.message
+      details: err.message,
     });
   }
 });
@@ -412,10 +428,14 @@ app.post("/api/bedrock/productAdvertisingAgent", async (req, res) => {
 
   // ---- Basic validation ----
   if (!userMessage) {
-    return res.status(400).json({ error: "Missing 'userMessage' in request body" });
+    return res
+      .status(400)
+      .json({ error: "Missing 'userMessage' in request body" });
   }
   if (!product || typeof product !== "object") {
-    return res.status(400).json({ error: "Missing or invalid 'product' in request body" });
+    return res
+      .status(400)
+      .json({ error: "Missing or invalid 'product' in request body" });
   }
 
   try {
@@ -425,24 +445,28 @@ app.post("/api/bedrock/productAdvertisingAgent", async (req, res) => {
     const messages = [
       {
         role: "user",
-        content: [{
-          text:
-            `User request:\n${userMessage}\n\n` +
-            `Product details (JSON):\n${productDetails}`
-        }]
+        content: [
+          {
+            text:
+              `User request:\n${userMessage}\n\n` +
+              `Product details (JSON):\n${productDetails}`,
+          },
+        ],
       },
       {
         role: "assistant",
-        content: [{
-          text:
-            "You are the JustificationAgent. Given the user's request and a specific recommended product, write a concise justification (1-2 sentences) explaining why this product is a good fit. " +
-            "Highlight how its features align with the user's stated needs (budget, quality, etc.). " +
-            "This will serve as a concluding summary for the user about this recommendation. " +
-            "Return ONLY a JSON object exactly like this:\n" +
-            "{ \"introduction\": \"Your justification here.\" }\n" +
-            "No extra text, no explanation."
-        }]
-      }
+        content: [
+          {
+            text:
+              "You are the JustificationAgent. Given the user's request and a specific recommended product, write a concise justification (1-2 sentences) explaining why this product is a good fit. " +
+              "Highlight how its features align with the user's stated needs (budget, quality, etc.). " +
+              "This will serve as a concluding summary for the user about this recommendation. " +
+              "Return ONLY a JSON object exactly like this:\n" +
+              '{ "introduction": "Your justification here." }\n' +
+              "No extra text, no explanation.",
+          },
+        ],
+      },
     ];
 
     const modelId = "apac.amazon.nova-pro-v1:0";
@@ -461,65 +485,75 @@ app.post("/api/bedrock/productAdvertisingAgent", async (req, res) => {
 
     const intro = JSON.parse(match[0]);
     res.json(intro);
-
   } catch (err) {
     console.error("Bedrock API error:", err);
     res.status(500).json({
       error: "Bedrock request failed",
-      details: err.message
+      details: err.message,
     });
   }
 });
-
 
 // Bedrock Final Summary Agent
 app.post("/api/bedrock/finalSummaryAgent", async (req, res) => {
   const { userRequest, products } = req.body;
 
   if (!userRequest) {
-    return res.status(400).json({ error: "Missing 'userRequest' in request body" });
+    return res
+      .status(400)
+      .json({ error: "Missing 'userRequest' in request body" });
   }
   if (!Array.isArray(products)) {
-    return res.status(400).json({ error: "Missing or invalid 'products' array in request body" });
+    return res
+      .status(400)
+      .json({ error: "Missing or invalid 'products' array in request body" });
   }
 
   try {
-    const productTitles = products.map(p => p.title || p).join(', ');
+    const productTitles = products.map((p) => p.title || p).join(", ");
 
     const modelInput = `User's request: "${userRequest}"\n\nTop products found: [${productTitles}]`;
 
     const messages = [
       {
         role: "user",
-        content: [{ text: modelInput }]
+        content: [{ text: modelInput }],
       },
       {
         role: "assistant",
-        content: [{
-          text:
-            "You are the Final Summary Agent. You will be given the user's original request and a list of the top products that were found. " +
-            "Your task is to write a very brief, friendly, and conclusive message for the chat window. " +
-            "Mention the product category you searched for and confirm that you've found some promising options. " +
-            "For example: 'I've analyzed your request for a budget-friendly gaming chair and found several great options for you to consider below!' or 'Based on your interest in Nasi Kerabu, I've found some highly-rated local listings and discussions.' " +
-            "The message should be a single, short paragraph. Output ONLY the summary text, with no extra formatting or JSON."
-        }]
-      }
+        content: [
+          {
+            text:
+              "You are the Final Summary Agent. You will be given the user's original request and a list of the top products that were found. " +
+              "Your task is to write a very brief, friendly, and conclusive message for the chat window. " +
+              "Mention the product category you searched for and confirm that you've found some promising options. " +
+              "For example: 'I've analyzed your request for a budget-friendly gaming chair and found several great options for you to consider below!' or 'Based on your interest in Nasi Kerabu, I've found some highly-rated local listings and discussions.' " +
+              "The message should be a single, short paragraph. Output ONLY the summary text, with no extra formatting or JSON.",
+          },
+        ],
+      },
     ];
 
     const modelId = "apac.amazon.nova-pro-v1:0";
     const command = new ConverseCommand({ modelId, messages });
     const response = await client.send(command);
 
-    const summary = response.output?.message?.content?.[0]?.text ?? "Here are your personalized product recommendations:";
+    const summary =
+      response.output?.message?.content?.[0]?.text ??
+      "Here are your personalized product recommendations:";
 
     res.json({ summary: summary.trim() });
-
   } catch (err) {
     console.error("Bedrock API error in finalSummaryAgent:", err);
-    res.status(500).json({ summary: "Here are your personalized product recommendations:", error: "Summary generation failed", details: err.message });
+    res
+      .status(500)
+      .json({
+        summary: "Here are your personalized product recommendations:",
+        error: "Summary generation failed",
+        details: err.message,
+      });
   }
 });
-
 
 // Custom Forum Search API route
 app.post("/api/search/forum", async (req, res) => {
