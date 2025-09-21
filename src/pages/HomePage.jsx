@@ -223,9 +223,7 @@ export default function HomePage() {
         <div className="p-4" style={{ overflowY: "auto", backgroundColor: "#f8f9fa" }}>
           <div className="d-flex align-items-start mb-4">
             <div>
-              <h1 className="h2 mb-1" style={{ color: "#232f3e", fontWeight: "600" }}>
-                ZooGent Product Assistant
-              </h1>
+              <img src="/logo.png" alt="ZooGent Logo" style={{ height: '90px', width: '110px' }} />
               <p className="text-muted">
                 Get personalized product recommendations powered by AI and community insights
               </p>
