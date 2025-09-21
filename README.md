@@ -20,14 +20,13 @@ Create a `.env` file in the `backend` directory with the following variables. Th
 # backend/.env
 
 # Google Custom Search API
-VITE_GOOGLE_API_KEY="YOUR_GOOGLE_API_KEY"
-VITE_GOOGLE_CX="YOUR_GOOGLE_SEARCH_ENGINE_ID"
+VITE_WEBSITE_SEARCH_API_KEY="YOUR_GOOGLE_API_KEY"
+VITE_WEBSITE_SEARCH_CX="YOUR_GOOGLE_SEARCH_ENGINE_ID"
 
 # AWS Credentials for Bedrock
 # Ensure your environment is configured with AWS credentials
 # e.g., via ~/.aws/credentials or by setting the following:
 AWS_BEARER_TOKEN_BEDROCK="YOUR_AWS_BEARER_TOKEN_BEDROCK"
-
 ```
 
 ### 2. Running the Application
