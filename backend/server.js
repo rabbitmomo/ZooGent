@@ -540,9 +540,9 @@ app.post("/api/search/forum", async (req, res) => {
         {
           params: {
             // eslint-disable-next-line no-undef
-            key: process.env.VITE_WEBSITE_SEARCH_API_KEY,
+            key: process.env.VITE_GOOGLE_API_KEY,
             // eslint-disable-next-line no-undef
-            cx: process.env.VITE_WEBSITE_SEARCH_CX,
+            cx: process.env.VITE_GOOGLE_CX,
             q: domainQuery,
             num: RESULTS_PER_DOMAIN,
           },
@@ -592,9 +592,9 @@ app.post("/api/search/marketplace", async (req, res) => {
         {
           params: {
             // eslint-disable-next-line no-undef
-            key: process.env.VITE_WEBSITE_SEARCH_API_KEY,
+            key: process.env.VITE_GOOGLE_API_KEY,
             // eslint-disable-next-line no-undef
-            cx: process.env.VITE_WEBSITE_SEARCH_CX,
+            cx: process.env.VITE_GOOGLE_CX,
             q: domainQuery,
             num: RESULTS_PER_DOMAIN,
           },
