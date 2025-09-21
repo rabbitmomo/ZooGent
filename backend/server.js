@@ -626,36 +626,6 @@ app.post("/api/search/marketplace", async (req, res) => {
   }
 });
 
-//Route of example openai api
-app.post("/openai", async (req, res) => {
-  console.log(req.body);
-  try {
-    const response = await axios.post(
-      "https://api.openai.com/v1/chat/completions",
-      {
-        model: "gpt-3.5-turbo",
-        messages: [{ role: "user", content: req.body.prompt }],
-        max_tokens: 150,
-      },
-      {
-        headers: {
-          // eslint-disable-next-line no-undef
-          Authorization: `Bearer ${process.env.VITE_OPENAI_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-      }
-    );
-
-    res.json({ message: response.data.choices[0]?.message?.content });
-  } catch (error) {
-    console.error(error.message);
-    res.status(500).json({
-      error: "OpenAI API request failed",
-      details: error.response?.data || error.message,
-    });
-  }
-});
-
 // eslint-disable-next-line no-undef
 const port = process.env.PORT || 5000;
 app.listen(port, () => {
