@@ -208,6 +208,51 @@ app.post("/api/bedrock/summarizeAgent", async (req, res) => {
   }
 });
 
+// Bedrock Context Agent
+app.post("/api/bedrock/contextAgent", async (req, res) => {
+  const { previousMessage, newMessage } = req.body;
+
+  if (!previousMessage || !newMessage) {
+    return res.status(400).json({ error: "Missing 'previousMessage' or 'newMessage' in request body" });
+  }
+
+  try {
+    const modelInput = `Previous user message: "${previousMessage}"\nNew user message: "${newMessage}"`;
+
+    const messages = [
+      {
+        role: "user",
+        content: [{ text: modelInput }]
+      },
+      {
+        role: "assistant",
+        content: [{
+          text:
+            "You are a Context Analysis Agent. You will be given a previous user message and a new user message. Your task is to determine if the new message is a follow-up or refinement of the previous one. Answer with ONLY a JSON object containing a single boolean key, 'isFollowUp'. For example: Previous: 'high quality headphones', New: 'make it cheap' -> {'isFollowUp': true}. Previous: 'high quality headphones', New: 'what about laptops?' -> {'isFollowUp': false}."
+        }]
+      }
+    ];
+
+    const modelId = "apac.amazon.nova-micro-v1:0";
+    const command = new ConverseCommand({ modelId, messages });
+    const response = await client.send(command);
+
+    const outputText = response.output?.message?.content?.[0]?.text ?? "";
+    const match = outputText.match(/\{[\s\S]*\}/);
+
+    if (match) {
+      const parsed = JSON.parse(match[0]);
+      res.json({ isFollowUp: parsed.isFollowUp === true });
+    } else {
+      // Fallback if JSON is not found
+      res.json({ isFollowUp: false });
+    }
+  } catch (err) {
+    console.error("Bedrock API error in contextAgent:", err);
+    res.status(500).json({ isFollowUp: false, error: "Context analysis failed", details: err.message });
+  }
+});
+
 // Bedrock Smart Query Agent
 app.post("/api/bedrock/smartQueryAgent", async (req, res) => {
   const { userRequest, productTopic } = req.body;

@@ -73,6 +73,21 @@ export default function HomePage() {
     }
   };
 
+  const callContextAgent = async (previousMessage, newMessage) => {
+    try {
+      const res = await fetch(`${BASE_URL}/api/bedrock/contextAgent`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ previousMessage, newMessage }),
+      });
+      const data = await res.json();
+      return data.isFollowUp === true;
+    } catch (err) {
+      console.error("ContextAgent API error:", err);
+      return false; // Default to not being a follow-up on error
+    }
+  };
+
   const callSmartQueryAgent = async (userRequest, productTopic) => {
     try {
       const res = await fetch(`${BASE_URL}/api/bedrock/smartQueryAgent`, {
@@ -85,24 +100,6 @@ export default function HomePage() {
     } catch (err) {
       console.error("SmartQueryAgent API error:", err);
       return [productTopic]; // Fallback to the basic topic
-    }
-  };
-
-  const callMatchAgent = async (userMessage, products) => {
-    try {
-      if (!products || products.length === 0) return [];
-
-      const res = await fetch(`${BASE_URL}/api/bedrock/matchAgent`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userMessage, products }),
-      });
-      const data = await res.json();
-      // Return the ranked products, or the original list as a fallback
-      return data.products || products;
-    } catch (err) {
-      console.error("MatchAgent API error:", err);
-      return products; // Fallback to unranked products on error
     }
   };
 
@@ -149,6 +146,24 @@ export default function HomePage() {
     }
   };
 
+  const callMatchAgent = async (userMessage, products) => {
+    try {
+      if (!products || products.length === 0) return [];
+
+      const res = await fetch(`${BASE_URL}/api/bedrock/matchAgent`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userMessage, products }),
+      });
+      const data = await res.json();
+      // Return the ranked products, or the original list as a fallback
+      return data.products || products;
+    } catch (err) {
+      console.error("MatchAgent API error:", err);
+      return products; // Fallback to unranked products on error
+    }
+  };
+
   const callFinalSummaryAgent = async (userRequest, products) => {
     try {
       const res = await fetch(`${BASE_URL}/api/bedrock/finalSummaryAgent`, {
@@ -168,20 +183,34 @@ export default function HomePage() {
     e.preventDefault();
     if (!input.trim()) return;
 
-    const userMessage = input;
-    setMessages((prev) => [...prev, { role: "user", text: userMessage }]);
+    const newUserMessage = input;
+    const currentMessages = [...messages, { role: "user", text: newUserMessage }];
+    
+    setMessages(currentMessages);
     setInput("");
     setLoading(true);
     setCurrentStep(0);
 
     try {
+      // *** NEW CONTEXT LOGIC START ***
+      const lastUserMessage = [...messages].reverse().find(m => m.role === 'user')?.text;
+      let contextualUserMessage = newUserMessage;
+
+      if (lastUserMessage) {
+        const isFollowUp = await callContextAgent(lastUserMessage, newUserMessage);
+        if (isFollowUp) {
+          contextualUserMessage = `Previous request: "${lastUserMessage}".\nFollow-up request: "${newUserMessage}"`;
+        }
+      }
+      // *** NEW CONTEXT LOGIC END ***
+
       // Step 1: Rewrite user message for search
       setCurrentStep(1);
-      const rewrittenQuery = await callSearchAgent(userMessage);
+      const rewrittenQuery = await callSearchAgent(contextualUserMessage);
 
       // Step 2: Generate Smart Queries
       setCurrentStep(2);
-      const smartQueries = await callSmartQueryAgent(userMessage, rewrittenQuery);
+      const smartQueries = await callSmartQueryAgent(contextualUserMessage, rewrittenQuery);
 
       // Step 3: Search forums with rewritten query
       setCurrentStep(3);
@@ -197,11 +226,11 @@ export default function HomePage() {
 
       // Step 6: Final Ranking of all candidates
       setCurrentStep(6);
-      const rankedProducts = await callMatchAgent(userMessage, marketplaceCandidates);
+      const rankedProducts = await callMatchAgent(contextualUserMessage, marketplaceCandidates);
 
       // Step 7: Get final summary
       setCurrentStep(7);
-      const finalSummary = await callFinalSummaryAgent(userMessage, rankedProducts.slice(0, 20));
+      const finalSummary = await callFinalSummaryAgent(contextualUserMessage, rankedProducts.slice(0, 20));
 
       // Step 8: Complete
       setCurrentStep(8);
